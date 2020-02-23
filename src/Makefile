@@ -26,6 +26,7 @@ OBJS=$(patsubst %.cpp, %.o, $(filter %.cpp, $(SRCS))) $(patsubst %.c, %.o, $(fil
 
 SRCS = splat.cpp \
 	itwom3.0.c \
+    sysutil.cpp \
 	zip.c
 
 LDFLAGS = -lm -lpthread -lz -lbz2 -ljpeg -lpng

@@ -29,7 +29,6 @@
 #ifndef _WIN32
 #include <unistd.h>
 #include <limits.h>
-#include <libgen.h> /* dirname() and basename() */
 #else
 #define unlink _unlink
 #endif
@@ -40,12 +39,10 @@
 #include "fontdata.h"
 #include "workqueue.hpp"
 #include "imagewriter.hpp"
+#include "sysutil.h"
 
 #ifdef _WIN32
-#define PATHSEP '\\'
 #define strdup _strdup
-#else
-#define PATHSEP '/'
 #endif
 
 #define GAMMA 2.5
@@ -76,13 +73,6 @@
 #define MAX_PATH_LEN 255
 #define MAX_LINE_LEN 128
 #define MAX_SITE_NAME_LEN 64
-
-#ifndef min
-#define min(i, j) ( i < j ? i : j)
-#endif
-#ifndef max
-#define max(i, j) ( i > j ? i : j)
-#endif
 
 #define DO_KMZ 1
 
@@ -270,32 +260,6 @@ extern "C" {
 #endif
 
 /*****************************
- * System-level utilities
- *****************************/
-
-#ifndef _WIN32
-#include <unistd.h>
-
-unsigned long long getTotalSystemMemory()
-{
-    unsigned long pages = sysconf(_SC_PHYS_PAGES);
-    unsigned long page_size = sysconf(_SC_PAGE_SIZE);
-    return pages * page_size;
-}
-#else
-#include <windows.h>
-
-unsigned long long getTotalSystemMemory()
-{
-    MEMORYSTATUSEX status;
-    status.dwLength = sizeof(status);
-    GlobalMemoryStatusEx(&status);
-    return status.ullTotalPhys;
-}
-
-#endif
-
-/*****************************
  * Functions for allocating Paths
  ****************************/
 int AppArraySize(AppMode mode)
@@ -353,38 +317,6 @@ unsigned long SizeofPath(AppMode mode, int pagesides)
 /*****************************
  * Utility functions
  *****************************/
-char* basename_s(char* path) {
-    if (!path) return (char*)""; /* const string */
-
-    int i = (int)strlen(path);
-    for ( ; i >= 0 && i != '/' && i != '\\'; --i); /* walk backwards until we find a path separator */
-    ++i; /* i is either -1 or the index of the slash, so move forward */
-    return &(path[i]);
-}
-
-/* Strip the extension off a path
- *    path: path to strip
- *     ext: buffer to hold the extension
- *  extlen: size of ext INCLUDING the null byte
- */
-void stripExtension(char *path, char* ext, size_t extlen)
-{
-    char *p;
-    size_t len;
-
-    p = strrchr(path, '.');
-
-    if (p == NULL) {
-        ext[0] = '\0';
-        return;
-    }
-
-    *p++ = '\0'; /* chop off extension and move ahead */
-
-    len = min(strlen(p)+1, extlen);
-    memcpy(ext, p, len);
-    ext[len] = '\0';
-}
 
 #ifdef _WIN32
 /* gnuplot's internal interpreter doesn't handle single backslashes
@@ -392,147 +324,10 @@ void stripExtension(char *path, char* ext, size_t extlen)
  * them into double backslashes or converting them to forward slashes.
  * Here we do an in-place conversion to forward slashes so that we don't
  * have to reallocate any memory. */
-void convertBackslashes(char *path)
-{
-    size_t i;
-    for (i=strlen(path)-1; i; --i) {
-        if (path[i] == '\\') path[i]='/';
-    }
-}
+#define convertBackslashes(path) SysUtil::ConvertBackslashes(path)
 #else
-/* empty macro */
-#define convertBackslashes(x) 
+#define convertBackslashes(path)  /* empty macro */
 #endif
-
-#ifndef _WIN32
-/* Windows has a useful function called _splitpath_s(). This is
- * intended to replicate that. */
-int _splitpath_s(
-                 const char * path,
-                 char * dir,
-                 size_t dirNumberOfElements,
-                 char * fname,
-                 size_t nameNumberOfElements,
-                 char * ext,
-                 size_t extNumberOfElements
-                )
-{
-    char *p;
-
-    if (path == NULL) {
-        return EINVAL;
-    }
-
-    char *fullpath = strdup(path);
-
-    /* Peel off everything up to (but not including) the final slash.
-     * If there is no slash (local file), returns an empty string.
-     * Guaranteed to be NULL terminated.
-     */
-    if (dir != NULL) {
-        char *tmp = strdup(fullpath); /* dirname munges its arg so copy*/
-        char *dname = dirname(tmp); /* If there is no slash, gets ".". */
-        if (dirNumberOfElements < strlen(dname)+1) {
-            free(tmp);
-            free(fullpath);
-            return ERANGE;
-        }
-        if (dname[0] == '.' && dname[1] == '\0') {
-            dir[0] = '\0';
-        }
-        else {
-            memcpy(dir, dname, strlen(dname) + 1);
-        }
-        free(tmp);
-    }
-
-    /* Everything after the last slash, or the whole thing if
-     * there is no slash. guaranteed to be null-terminated.
-     */
-    char *base = basename(fullpath);
-
-    if ( ((p = strchr(base, '.')) == NULL) || (strlen(p) < 2)) {
-        /* Easy case: no suffix */
-        if (ext) {
-            if (extNumberOfElements < 1) {
-                free(fullpath);
-                return ERANGE;
-            }
-            ext[0] = '\0';
-        }
-    } else {
-        /* peel off everything from the first dot to the end. Note
-         * that multiple suffixes get treated as one; i.e. "foo.tar.gz"
-         * gets split into "foo" and "tar.gz".
-         */
-        *p++ = '\0';
-        if (ext) {
-            if (extNumberOfElements < strlen(p)) {
-                free(fullpath);
-                return ERANGE;
-            }
-            memcpy(ext, p, strlen(p) + 1);
-        }
-    }
-
-    if (fname) {
-        if (nameNumberOfElements < strlen(base)+1) {
-            free(fullpath);
-            return ERANGE;
-        }
-        memcpy(fname, base, strlen(base) + 1);
-    }
-
-    free(fullpath);
-    return 0;
-}
-#endif
-
-/* Copy a filename, up to but not including the suffix.
- * If newSuffix is specified, add that on.
- * The new filename is malloced and must be freed when
- * the caller is done with it.
- */
-char* copyFilename(char *fname, const char *newSuffix) {
-    char pathbuf[1027], filebuf[512], suffixbuf[64];
-    char *newFname;
-
-#ifdef _WIN32
-    char drivebuf[3];
-    drivebuf[0] = '\0';
-    if (_splitpath_s(fname, drivebuf, 3, pathbuf, 1024, filebuf, 512, suffixbuf, 64) != 0) {
-        return NULL;
-    }
-    size_t offset = strlen(drivebuf); /* includes room for colon */
-    if ((offset > 0) && (strlen(pathbuf) > 0)) {
-        memmove(pathbuf+offset, pathbuf, strlen(pathbuf));
-        memcpy(pathbuf, drivebuf, offset);
-    }
-#else
-    if (_splitpath_s(fname, pathbuf, 1024, filebuf, 512, suffixbuf, 64) != 0) {
-        return NULL;
-    }
-#endif
-
-    if (newSuffix && (strlen(newSuffix) > 0)) {
-        size_t len = strlen(pathbuf) + strlen(filebuf) + strlen(newSuffix) + 3;
-        newFname = (char*)malloc(len);
-        if (strlen(pathbuf)==0 || strcmp(pathbuf, ".")==0) {  /* if it's "./foo", just make it "foo" */
-            snprintf(newFname, len, "%s.%s", filebuf, newSuffix);
-        } else {
-            snprintf(newFname, len, "%s%c%s.%s", pathbuf, PATHSEP, filebuf, newSuffix);
-        }
-    } else {
-        size_t len = strlen(pathbuf) + strlen(filebuf) + 2;
-        newFname = (char*)malloc(len);
-        if (strlen(pathbuf) == 0 || strcmp(pathbuf, ".")==0) {  /* if it's "./foo", just make it "foo" */
-            snprintf(newFname, len, "%s", filebuf);
-        } else {
-            snprintf(newFname, len, "%s%c%s", pathbuf, PATHSEP, filebuf);
-        }
-    }
-    return newFname;
-}
 
 
 /* Perform linear interpolation between quantized contour
@@ -1768,8 +1563,8 @@ void LoadPAT(char *filename)
         elevation_pattern[x] = (double*)malloc(sizeof(double) * 1001);
     }
 
-    azfile = copyFilename(filename, "az");
-    elfile = copyFilename(filename, "el");
+    azfile = SysUtil::CopyFilename(filename, "az");
+    elfile = SysUtil::CopyFilename(filename, "el");
 
     rotation=0.0;
 
@@ -2780,7 +2575,7 @@ char LoadLRP(Site txsite, char forced_read)
 
     /* Generate .lrp filename from txsite filename. */
 
-    filename = copyFilename(txsite.filename, "lrp");
+    filename = SysUtil::CopyFilename(txsite.filename, "lrp");
 
     printf("Loading %s\n", filename);
 
@@ -3810,7 +3605,7 @@ void LoadSignalColors(Site xmtr)
     char *filename, buf[MAX_LINE_LEN], *pointer=NULL;
     FILE *fd=NULL;
 
-    filename = copyFilename(xmtr.filename, "scf");
+    filename = SysUtil::CopyFilename(xmtr.filename, "scf");
 
     /* Default values */
 
@@ -3955,7 +3750,7 @@ void LoadLossColors(Site xmtr)
     char *filename, buf[MAX_LINE_LEN], *pointer=NULL;
     FILE *fd=NULL;
 
-    filename = copyFilename(xmtr.filename, "lcf");
+    filename = SysUtil::CopyFilename(xmtr.filename, "lcf");
 
     /* Default values */
 
@@ -4116,7 +3911,7 @@ void LoadDBMColors(Site xmtr)
     char *filename, buf[MAX_LINE_LEN], *pointer=NULL;
     FILE *fd=NULL;
 
-    filename = copyFilename(xmtr.filename, "dcf");
+    filename = SysUtil::CopyFilename(xmtr.filename, "dcf");
 
     /* Default values */
 
@@ -4325,11 +4120,11 @@ void WriteImage(char *filename, ImageType imagetype, bool geo, bool kml, bool ng
             suffix = "ppm";
             break;
     }
-    mapfile = copyFilename(filename, suffix);
-    geofile = copyFilename(filename, "geo");
-    kmlfile = copyFilename(filename, "kml");
+    mapfile = SysUtil::CopyFilename(filename, suffix);
+    geofile = SysUtil::CopyFilename(filename, "geo");
+    kmlfile = SysUtil::CopyFilename(filename, "kml");
 #if DO_KMZ
-    kmzfile = copyFilename(filename, "kmz");
+    kmzfile = SysUtil::CopyFilename(filename, "kmz");
 #endif
 
     minwest=((double)min_west)+dpp;
@@ -4646,15 +4441,15 @@ void WriteImageLR(char *filename, ImageType imagetype, bool geo, bool kml, bool 
             suffix = "ppm";
             break;
     }
-    mapfile = copyFilename(filename, suffix);
-    geofile = copyFilename(filename, "geo");
-    kmlfile = copyFilename(filename, "kml");
+    mapfile = SysUtil::CopyFilename(filename, suffix);
+    geofile = SysUtil::CopyFilename(filename, "geo");
+    kmlfile = SysUtil::CopyFilename(filename, "kml");
 #if DO_KMZ
-    kmzfile = copyFilename(filename, "kmz");
+    kmzfile = SysUtil::CopyFilename(filename, "kmz");
 #endif
 
     /* ick */
-    ckfile = copyFilename(filename, NULL);
+    ckfile = SysUtil::CopyFilename(filename, NULL);
     ckfile = (char*)realloc(ckfile, strlen(ckfile)+strlen(suffix)+5);
     strcat(ckfile, "-ck.");
     strcat(ckfile, suffix);
@@ -4706,7 +4501,7 @@ void WriteImageLR(char *filename, ImageType imagetype, bool geo, bool kml, bool 
         fprintf(fd,"		  <description>SPLAT! Coverage</description>\n");
         fprintf(fd,"		  <color>8cffffff</color>\n"); /* transparency level, higher is clearer */
         fprintf(fd,"		  <Icon>\n");
-        fprintf(fd,"			  <href>%s</href>\n",basename_s(mapfile));
+        fprintf(fd,"			  <href>%s</href>\n",SysUtil::Basename(mapfile));
         fprintf(fd,"		  </Icon>\n");
         /* fprintf(fd,"			<opacity>128</opacity>\n"); */
         fprintf(fd,"			<LatLonBox>\n");
@@ -4722,7 +4517,7 @@ void WriteImageLR(char *filename, ImageType imagetype, bool geo, bool kml, bool 
         fprintf(fd,"		  <description>Contour Color Key</description>\n");
         fprintf(fd,"		  <color>8cffffff</color>\n"); /* transparency level, higher is clearer */
         fprintf(fd,"		  <Icon>\n");
-        fprintf(fd,"			<href>%s</href>\n",basename_s(ckfile));
+        fprintf(fd,"			<href>%s</href>\n",SysUtil::Basename(ckfile));
         fprintf(fd,"		  </Icon>\n");
         fprintf(fd,"		  <overlayXY x=\"0\" y=\"1\" xunits=\"fraction\" yunits=\"fraction\"/>\n");
         fprintf(fd,"		  <screenXY x=\"0\" y=\"1\" xunits=\"fraction\" yunits=\"fraction\"/>\n");
@@ -5164,15 +4959,15 @@ void WriteImageSS(char *filename, ImageType imagetype, bool geo, bool kml, bool 
             suffix = "ppm";
             break;
     }
-    mapfile = copyFilename(filename, suffix);
-    geofile = copyFilename(filename, "geo");
-    kmlfile = copyFilename(filename, "kml");
+    mapfile = SysUtil::CopyFilename(filename, suffix);
+    geofile = SysUtil::CopyFilename(filename, "geo");
+    kmlfile = SysUtil::CopyFilename(filename, "kml");
 #if DO_KMZ
-    kmzfile = copyFilename(filename, "kmz");
+    kmzfile = SysUtil::CopyFilename(filename, "kmz");
 #endif
 
     /* ick */
-    ckfile = copyFilename(filename, NULL);
+    ckfile = SysUtil::CopyFilename(filename, NULL);
     ckfile = (char*)realloc(ckfile, strlen(ckfile)+strlen(suffix)+5);
     strcat(ckfile, "-ck.");
     strcat(ckfile, suffix);
@@ -5223,7 +5018,7 @@ void WriteImageSS(char *filename, ImageType imagetype, bool geo, bool kml, bool 
         fprintf(fd,"		 <description>SPLAT! Coverage</description>\n");
         fprintf(fd,"		 <color>8cffffff</color>\n"); /* transparency level, higher is clearer */
         fprintf(fd,"		 <Icon>\n");
-        fprintf(fd,"			  <href>%s</href>\n",basename_s(mapfile));
+        fprintf(fd,"			  <href>%s</href>\n",SysUtil::Basename(mapfile));
         fprintf(fd,"		 </Icon>\n");
         /* fprintf(fd,"			<opacity>128</opacity>\n"); */
         fprintf(fd,"			<LatLonBox>\n");
@@ -5239,7 +5034,7 @@ void WriteImageSS(char *filename, ImageType imagetype, bool geo, bool kml, bool 
         fprintf(fd,"		  <description>Contour Color Key</description>\n");
         fprintf(fd,"		  <color>8cffffff</color>\n"); /* transparency level, higher is clearer */
         fprintf(fd,"		  <Icon>\n");
-        fprintf(fd,"			<href>%s</href>\n",basename_s(ckfile));
+        fprintf(fd,"			<href>%s</href>\n",SysUtil::Basename(ckfile));
         fprintf(fd,"		  </Icon>\n");
         fprintf(fd,"		  <overlayXY x=\"0\" y=\"1\" xunits=\"fraction\" yunits=\"fraction\"/>\n");
         fprintf(fd,"		  <screenXY x=\"0\" y=\"1\" xunits=\"fraction\" yunits=\"fraction\"/>\n");
@@ -5720,12 +5515,12 @@ void WriteImageDBM(char *filename, ImageType imagetype, bool geo, bool kml, bool
             suffix = "ppm";
             break;
     }
-    mapfile = copyFilename(filename, suffix);
-    geofile = copyFilename(filename, "geo");
-    kmlfile = copyFilename(filename, "kml");
+    mapfile = SysUtil::CopyFilename(filename, suffix);
+    geofile = SysUtil::CopyFilename(filename, "geo");
+    kmlfile = SysUtil::CopyFilename(filename, "kml");
 
     /* ick */
-    ckfile = copyFilename(filename, NULL);
+    ckfile = SysUtil::CopyFilename(filename, NULL);
     ckfile = (char*)realloc(ckfile, strlen(ckfile)+strlen(suffix)+5);
     strcat(ckfile, "-ck.");
     strcat(ckfile, suffix);
@@ -5776,7 +5571,7 @@ void WriteImageDBM(char *filename, ImageType imagetype, bool geo, bool kml, bool
         fprintf(fd,"		 <description>SPLAT! Coverage</description>\n");
         fprintf(fd,"		 <color>8cffffff</color>\n"); /* transparency level, higher is clearer */
         fprintf(fd,"		 <Icon>\n");
-        fprintf(fd,"			  <href>%s</href>\n",basename_s(mapfile));
+        fprintf(fd,"			  <href>%s</href>\n",SysUtil::Basename(mapfile));
         fprintf(fd,"		 </Icon>\n");
         /* fprintf(fd,"			<opacity>128</opacity>\n"); */
         fprintf(fd,"			<LatLonBox>\n");
@@ -5792,7 +5587,7 @@ void WriteImageDBM(char *filename, ImageType imagetype, bool geo, bool kml, bool
         fprintf(fd,"		  <description>Contour Color Key</description>\n");
         fprintf(fd,"		  <color>8cffffff</color>\n"); /* transparency level, higher is clearer */
         fprintf(fd,"		  <Icon>\n");
-        fprintf(fd,"			<href>%s</href>\n",basename_s(ckfile));
+        fprintf(fd,"			<href>%s</href>\n",SysUtil::Basename(ckfile));
         fprintf(fd,"		  </Icon>\n");
         fprintf(fd,"		  <overlayXY x=\"0\" y=\"1\" xunits=\"fraction\" yunits=\"fraction\"/>\n");
         fprintf(fd,"		  <screenXY x=\"0\" y=\"1\" xunits=\"fraction\" yunits=\"fraction\"/>\n");
@@ -6316,7 +6111,7 @@ void GraphTerrain(Site source, Site destination, char *name)
     {
         /* Extract extension and terminal type from "name" */
         strncpy(basename, name, MAX_PATH_LEN-1);
-        stripExtension(basename, ext, 20);
+        SysUtil::StripFileExtension(basename, ext, 20);
         convertBackslashes(basename);
         if (strlen(ext) == 0)
         {
@@ -6508,7 +6303,7 @@ void GraphElevation(Site source, Site destination, char *name)
     {
         /* Extract extension and terminal type from "name" */
         strncpy(basename, name, MAX_PATH_LEN-1);
-        stripExtension(basename, ext, 20);
+        SysUtil::StripFileExtension(basename, ext, 20);
         convertBackslashes(basename);
         if (strlen(ext) == 0)
         {
@@ -6817,7 +6612,7 @@ void GraphHeight(Site source, Site destination, char *name, bool fresnel_plot, b
     {
         /* Extract extension and terminal type from "name" */
         strncpy(basename, name, MAX_PATH_LEN-1);
-        stripExtension(basename, ext, 20);
+        SysUtil::StripFileExtension(basename, ext, 20);
         convertBackslashes(basename);
         if (strlen(ext) == 0)
         {
@@ -7749,7 +7544,7 @@ void PathReport(Site source, Site destination, char *name, bool graph_it)
         {
             /* Extract extension and terminal type from "name" */
             strncpy(basename, name, MAX_PATH_LEN-1);
-            stripExtension(basename, ext, 20);
+            SysUtil::StripFileExtension(basename, ext, 20);
             convertBackslashes(basename);
             if (strlen(ext) == 0)
             {
@@ -8390,7 +8185,7 @@ int main(int argc, char *argv[])
 
     FILE		*fd;
 
-    unsigned long long systemMemory = getTotalSystemMemory();
+    unsigned long long systemMemory = SysUtil::GetTotalSystemMemory();
 
     strncpy(dashes,"---------------------------------------------------------------------------\0",76);
 
@@ -9231,35 +9026,35 @@ int main(int argc, char *argv[])
         PlaceMarker(rx_site);
 
         if (longley_plot) {
-            stripExtension(longley_file, longley_ext, 4);
+            SysUtil::StripFileExtension(longley_file, longley_ext, 4);
             if (strlen(longley_ext) == 0) {
                 strcpy(longley_ext, "png");
             }
         }
 
         if (terrain_plot) {
-            stripExtension(terrain_file, terrain_ext, 4);
+            SysUtil::StripFileExtension(terrain_file, terrain_ext, 4);
             if (strlen(terrain_ext) == 0) {
                 strcpy(terrain_ext, "png");
             }
         }
 
         if (elevation_plot) {
-            stripExtension(elevation_file, elevation_ext, 4);
+            SysUtil::StripFileExtension(elevation_file, elevation_ext, 4);
             if (strlen(elevation_ext) == 0) {
                 strcpy(elevation_ext, "png");
             }
         }
 
         if (height_plot) {
-            stripExtension(height_file, height_ext, 4);
+            SysUtil::StripFileExtension(height_file, height_ext, 4);
             if (strlen(height_ext) == 0) {
                 strcpy(height_ext, "png");
             }
         }
 
         if (norm_height_plot) {
-            stripExtension(norm_height_file, norm_height_ext, 4);
+            SysUtil::StripFileExtension(norm_height_file, norm_height_ext, 4);
             if (strlen(norm_height_ext) == 0) {
                 strcpy(norm_height_ext, "png");
             }
