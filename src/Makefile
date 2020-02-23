@@ -17,6 +17,8 @@ else
   CLANG_CFLAGS:=
 endif
 
+# temporary hack for gcc 9, which gripes at our usage of fscanf. This should go away eventually.
+GCC_CFLAGS+=-Wno-unused-result
 
 #CPPFLAGS= -g -Wall -ffast-math $(CLANG_CFLAGS) $(GCC_CFLAGS)
 CPPFLAGS= -O3 -Wall -ffast-math $(CLANG_CFLAGS) $(GCC_CFLAGS)

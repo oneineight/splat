@@ -37,20 +37,9 @@
 #include "bzlib.h"
 #include "zip.h"
 
-#define HAVE_LIBPNG
-#ifndef _WIN32
-#define HAVE_LIBJPEG
-#endif
-
-#ifdef HAVE_LIBPNG
-#include <png.h>
-#endif
-#ifdef HAVE_LIBJPEG
-#include "jpeglib.h"
-#endif
-
 #include "fontdata.h"
 #include "workqueue.hpp"
+#include "imagewriter.hpp"
 
 #ifdef _WIN32
 #define PATHSEP '\\'
@@ -171,16 +160,6 @@ typedef struct Region {
     int levels;
 } Region;
 
-typedef enum ImageType {
-    IMAGETYPE_PPM = 0,
-#ifdef HAVE_LIBPNG
-    IMAGETYPE_PNG,
-#endif
-#ifdef HAVE_LIBJPEG
-    IMAGETYPE_JPG,
-#endif
-} ImageType;
-
 typedef enum SDFCompressType {
     SDF_COMPRESSTYPE_NONE = 0,
     SDF_COMPRESSTYPE_BZIP2
@@ -235,21 +214,8 @@ int demCount = 0;
  * Color handling stuff
  ****************************/
 
-/* 100: area plot image size is about 550KB (best quality)
- *  95: area plot image size is about 290KB.
- *  90: area plot image size is about 200KB. This is about what "convert"'s default is.
- *  80: area plot image size is about 130KB, but has noticeable artifacts when zoomed in.
- */
-#define DEFAULT_JPEG_QUALITY 90
-
-typedef uint32_t Pixel;
-
 #ifndef _WIN32
 #define RGB(r,g,b) ( ((uint32_t)(uint8_t)r)|((uint32_t)((uint8_t)g)<<8)|((uint32_t)((uint8_t)b)<<16) )
-
-#define GetRValue(RGBColor) (uint8_t) (RGBColor & 0xff)
-#define GetGValue(RGBColor) (uint8_t) ((((uint32_t)(RGBColor)) >> 8) & 0xff)
-#define GetBValue(RGBColor) (uint8_t) ((((uint32_t)(RGBColor)) >> 16) & 0xff)
 #endif
 
 #define COLOR_RED				RGB(255, 0, 0)
@@ -328,155 +294,6 @@ unsigned long long getTotalSystemMemory()
 }
 
 #endif
-
-/*****************************
- * Image writing functions. This should just be a class.
- *****************************/
-
-typedef struct ImageWriter_st
-{
-    bool initialized;
-
-    FILE *fp;
-    ImageType imagetype;
-    int width;
-    int height;
-
-    int xoffset;
-
-    unsigned char *imgline;
-
-#ifdef HAVE_LIBPNG
-    png_structp png_ptr;
-    png_infop info_ptr;
-#endif
-#ifdef HAVE_LIBJPEG
-    struct jpeg_compress_struct cinfo;
-    struct jpeg_error_mgr jerr;
-#endif
-} ImageWriter;
-
-int ImageWriterInit(ImageWriter *iw, const char* filename, ImageType imagetype, int width, int height)
-{
-    memset(iw, 0, sizeof(ImageWriter));
-
-    if ( (iw->fp=fopen(filename,"wb")) == NULL) {
-        return -1;
-    }
-
-    iw->imagetype = imagetype;
-    iw->width = width;
-    iw->height = height;
-    iw->xoffset = 0;
-
-    iw->imgline = (unsigned char*)malloc(3 * width);
-
-    // XXX TODO: error handling
-    switch (iw->imagetype) {
-        default:
-#ifdef HAVE_LIBPNG
-        case IMAGETYPE_PNG:
-            iw->png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-            iw->info_ptr = png_create_info_struct(iw->png_ptr);
-            png_init_io(iw->png_ptr, iw->fp);
-            png_set_IHDR(iw->png_ptr, iw->info_ptr,
-                         iw->width, iw->height,
-                         8, /* 8 bits per color or 24 bits per pixel for RGB */
-                         PNG_COLOR_TYPE_RGB,
-                         PNG_INTERLACE_NONE,
-                         PNG_COMPRESSION_TYPE_DEFAULT,
-                         PNG_FILTER_TYPE_BASE);
-            png_set_compression_level(iw->png_ptr, 6);  /* default is Z_DEFAULT_COMPRESSION; see zlib.h */
-            png_write_info(iw->png_ptr, iw->info_ptr);
-            break;
-#endif
-#ifdef HAVE_LIBJPEG
-        case IMAGETYPE_JPG:
-            iw->cinfo.err = jpeg_std_error(&iw->jerr);
-            jpeg_create_compress(&iw->cinfo);
-            jpeg_stdio_dest(&iw->cinfo, iw->fp);
-            iw->cinfo.image_width = iw->width;
-            iw->cinfo.image_height = iw->height;
-            iw->cinfo.input_components = 3;	   /* # of color components per pixel */
-            iw->cinfo.in_color_space = JCS_RGB;   /* colorspace of input image */
-            jpeg_set_defaults(&iw->cinfo); /* default compression */
-            jpeg_set_quality(&iw->cinfo, DEFAULT_JPEG_QUALITY, TRUE); /* possible range is 0-100 */
-            jpeg_start_compress(&iw->cinfo, TRUE); /* start compressor. */
-            break;
-#endif
-        case IMAGETYPE_PPM:
-            fprintf(iw->fp,"P6\n%u %u\n255\n",iw->width,iw->height);
-    }
-
-    iw->initialized = true;
-    return 0;
-}
-
-void ImageWriterAppendPixel(ImageWriter *iw, Pixel pixel)
-{
-    if (!iw->initialized)
-        return;
-
-    if ((iw->xoffset+3) > (iw->width*3)) {
-        return;
-    }
-
-    iw->imgline[iw->xoffset++]=GetRValue(pixel);
-    iw->imgline[iw->xoffset++]=GetGValue(pixel);
-    iw->imgline[iw->xoffset++]=GetBValue(pixel);
-}
-
-void ImageWriterEmitLine(ImageWriter *iw)
-{
-    if (!iw->initialized)
-        return;
-
-    switch (iw->imagetype) {
-        default:
-#ifdef HAVE_LIBPNG
-        case IMAGETYPE_PNG:
-            png_write_row(iw->png_ptr, (png_bytep)(iw->imgline));
-            break;
-#endif
-#ifdef HAVE_LIBJPEG
-        case IMAGETYPE_JPG:
-            jpeg_write_scanlines(&iw->cinfo, &iw->imgline, 1);
-            break;
-#endif
-        case IMAGETYPE_PPM:
-            fwrite(iw->imgline, 3, iw->width, iw->fp);
-            break;
-    }
-    iw->xoffset = 0;
-}
-
-void ImageWriterFinish(ImageWriter *iw)
-{
-    if (!iw->initialized)
-        return;
-
-    switch (iw->imagetype) {
-        default:
-#ifdef HAVE_LIBPNG
-        case IMAGETYPE_PNG:
-            png_write_end(iw->png_ptr, iw->info_ptr);
-            png_destroy_write_struct(&iw->png_ptr, &iw->info_ptr);
-            break;
-#endif
-#ifdef HAVE_LIBJPEG
-        case IMAGETYPE_JPG:
-            jpeg_finish_compress(&iw->cinfo);
-            jpeg_destroy_compress(&iw->cinfo);
-            break;
-#endif
-        case IMAGETYPE_PPM:
-            /* do nothing */
-            ;
-    }
-
-    fclose(iw->fp);
-    free(iw->imgline);
-}
 
 /*****************************
  * Functions for allocating Paths
@@ -4480,7 +4297,6 @@ void WriteImage(char *filename, ImageType imagetype, bool geo, bool kml, bool ng
     FILE *fd;
 
     Pixel pixel = 0;
-    ImageWriter iw;
 
     one_over_gamma=1.0/GAMMA;
     conversion=255.0/pow((double)(max_elevation-min_elevation),one_over_gamma);
@@ -4599,141 +4415,142 @@ void WriteImage(char *filename, ImageType imagetype, bool geo, bool kml, bool ng
     fprintf(stdout,"Writing \"%s\" (%ux%u image)...\n",mapfile,width,height);
     fflush(stdout);
 
-    if (ImageWriterInit(&iw,mapfile,imagetype,width,height)<0) {
-        fprintf(stdout,"\nError writing \"%s\"!\n",mapfile);
-        fflush(stdout);
-        return;
-    }
+    try {
+        ImageWriter iw = ImageWriter(mapfile,imagetype,width,height);
 
-    for (int y=0, lat=north; y<(int)height; y++, lat=north-(dpp*(double)y))
-    {
-        for (int x=0, lon=max_west; x<(int)width; x++, lon=(double)max_west-(dpp*(double)x))
+        for (int y=0, lat=north; y<(int)height; y++, lat=north-(dpp*(double)y))
         {
-            if (lon<0.0)
-                lon+=360.0;
-
-            dem = FindDEM(lat, lon, x0, y0);
-            if (dem)
+            for (int x=0, lon=max_west; x<(int)width; x++, lon=(double)max_west-(dpp*(double)x))
             {
-                mask=dem->mask[x0][y0];
+                if (lon<0.0)
+                    lon+=360.0;
 
-                if (mask&2)
-                    /* Text Labels: Red */
-                    pixel=COLOR_RED;
-
-                else if (mask&4)
-                    /* County Boundaries: Light Cyan */
-                    pixel=COLOR_LIGHTCYAN;
-
-                else switch (mask&57)
+                dem = FindDEM(lat, lon, x0, y0);
+                if (dem)
                 {
-                    case 1:
-                        /* TX1: Green */
-                        pixel=COLOR_GREEN;
-                        break;
+                    mask=dem->mask[x0][y0];
 
-                    case 8:
-                        /* TX2: Cyan */
-                        pixel=COLOR_CYAN;
-                        break;
+                    if (mask&2)
+                        /* Text Labels: Red */
+                        pixel=COLOR_RED;
 
-                    case 9:
-                        /* TX1 + TX2: Yellow */
-                        pixel=COLOR_YELLOW;
-                        break;
+                    else if (mask&4)
+                        /* County Boundaries: Light Cyan */
+                        pixel=COLOR_LIGHTCYAN;
 
-                    case 16:
-                        /* TX3: Medium Violet */
-                        pixel=COLOR_MEDIUMVIOLET;
-                        break;
+                    else switch (mask&57)
+                    {
+                        case 1:
+                            /* TX1: Green */
+                            pixel=COLOR_GREEN;
+                            break;
 
-                    case 17:
-                        /* TX1 + TX3: Pink */
-                        pixel=COLOR_PINK;
-                        break;
+                        case 8:
+                            /* TX2: Cyan */
+                            pixel=COLOR_CYAN;
+                            break;
 
-                    case 24:
-                        /* TX2 + TX3: Orange */
-                        pixel=COLOR_ORANGE;
-                        break;
+                        case 9:
+                            /* TX1 + TX2: Yellow */
+                            pixel=COLOR_YELLOW;
+                            break;
 
-                    case 25:
-                        /* TX1 + TX2 + TX3: Dark Green */
-                        pixel=COLOR_DARKGREEN;
-                        break;
+                        case 16:
+                            /* TX3: Medium Violet */
+                            pixel=COLOR_MEDIUMVIOLET;
+                            break;
 
-                    case 32:
-                        /* TX4: Sienna 1 */
-                        pixel=COLOR_SIENNA;
-                        break;
+                        case 17:
+                            /* TX1 + TX3: Pink */
+                            pixel=COLOR_PINK;
+                            break;
 
-                    case 33:
-                        /* TX1 + TX4: Green Yellow */
-                        pixel=COLOR_GREENYELLOW;
-                        break;
+                        case 24:
+                            /* TX2 + TX3: Orange */
+                            pixel=COLOR_ORANGE;
+                            break;
 
-                    case 40:
-                        /* TX2 + TX4: Dark Sea Green 1 */
-                        pixel=COLOR_DARKSEAGREEN1;
-                        break;
+                        case 25:
+                            /* TX1 + TX2 + TX3: Dark Green */
+                            pixel=COLOR_DARKGREEN;
+                            break;
 
-                    case 41:
-                        /* TX1 + TX2 + TX4: Blanched Almond */
-                        pixel=COLOR_BLANCHEDALMOND;
-                        break;
+                        case 32:
+                            /* TX4: Sienna 1 */
+                            pixel=COLOR_SIENNA;
+                            break;
 
-                    case 48:
-                        /* TX3 + TX4: Dark Turquoise */
-                        pixel=COLOR_DARKTURQUOISE;
-                        break;
+                        case 33:
+                            /* TX1 + TX4: Green Yellow */
+                            pixel=COLOR_GREENYELLOW;
+                            break;
 
-                    case 49:
-                        /* TX1 + TX3 + TX4: Medium Spring Green */
-                        pixel=COLOR_MEDIUMSPRINGGREEN;
-                        break;
+                        case 40:
+                            /* TX2 + TX4: Dark Sea Green 1 */
+                            pixel=COLOR_DARKSEAGREEN1;
+                            break;
 
-                    case 56:
-                        /* TX2 + TX3 + TX4: Tan */
-                        pixel=COLOR_TAN;
-                        break;
+                        case 41:
+                            /* TX1 + TX2 + TX4: Blanched Almond */
+                            pixel=COLOR_BLANCHEDALMOND;
+                            break;
 
-                    case 57:
-                        /* TX1 + TX2 + TX3 + TX4: Gold2 */
-                        pixel=COLOR_GOLD2;
-                        break;
+                        case 48:
+                            /* TX3 + TX4: Dark Turquoise */
+                            pixel=COLOR_DARKTURQUOISE;
+                            break;
 
-                    default:
-                        if (ngs)  /* No terrain */
-                            pixel=COLOR_WHITE;
-                        else
-                        {
-                            /* Sea-level: Medium Blue */
-                            if (dem->data[x0][y0]==0)
-                                pixel = COLOR_MEDIUMBLUE;
+                        case 49:
+                            /* TX1 + TX3 + TX4: Medium Spring Green */
+                            pixel=COLOR_MEDIUMSPRINGGREEN;
+                            break;
+
+                        case 56:
+                            /* TX2 + TX3 + TX4: Tan */
+                            pixel=COLOR_TAN;
+                            break;
+
+                        case 57:
+                            /* TX1 + TX2 + TX3 + TX4: Gold2 */
+                            pixel=COLOR_GOLD2;
+                            break;
+
+                        default:
+                            if (ngs)  /* No terrain */
+                                pixel=COLOR_WHITE;
                             else
                             {
-                                /* Elevation: Greyscale */
-                                terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
-                                pixel=RGB(terrain,terrain,terrain);
+                                /* Sea-level: Medium Blue */
+                                if (dem->data[x0][y0]==0)
+                                    pixel = COLOR_MEDIUMBLUE;
+                                else
+                                {
+                                    /* Elevation: Greyscale */
+                                    terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
+                                    pixel=RGB(terrain,terrain,terrain);
+                                }
                             }
-                        }
+                    }
                 }
-            }
-            else
-            {
-                /* We should never get here, but if */
-                /* we do, display the region as black */
+                else
+                {
+                    /* We should never get here, but if */
+                    /* we do, display the region as black */
 
-                pixel=COLOR_BLACK;
+                    pixel=COLOR_BLACK;
+                }
+
+                iw.AppendPixel(pixel);
             }
 
-            ImageWriterAppendPixel(&iw, pixel);
+            iw.EmitLine();
         }
 
-        ImageWriterEmitLine(&iw);
+        iw.Finish();
+    } catch (const std::exception& e) {
+        std::cerr << "Error writing " << mapfile << ": " << e.what() << std::endl;
+        return;
     }
-
-    ImageWriterFinish(&iw);
 
 #if DO_KMZ
     if (kml) {
@@ -4799,7 +4616,6 @@ void WriteImageLR(char *filename, ImageType imagetype, bool geo, bool kml, bool 
     FILE *fd;
 
     Pixel pixel = 0;
-    ImageWriter iw;
 
     one_over_gamma=1.0/GAMMA;
     conversion=255.0/pow((double)(max_elevation-min_elevation),one_over_gamma);
@@ -4960,202 +4776,203 @@ void WriteImageLR(char *filename, ImageType imagetype, bool geo, bool kml, bool 
     fprintf(stdout,"\nWriting LR map \"%s\" (%ux%u image)... ",mapfile,imgwidth,imgheight);
     fflush(stdout);
 
-    if (ImageWriterInit(&iw,mapfile,imagetype,imgwidth,imgheight)<0) {
-        fprintf(stdout,"\nError writing \"%s\"!\n",mapfile);
-        fflush(stdout);
-        return;
-    }
+    try {
+        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight);
 
-    for (y=0, lat=north; y<(int)height; y++, lat=north-(dpp*(double)y))
-    {
-        for (x=0, lon=max_west; x<(int)width; x++, lon=max_west-(dpp*(double)x))
+        for (y=0, lat=north; y<(int)height; y++, lat=north-(dpp*(double)y))
         {
-            if (lon<0.0)
-                lon+=360.0;
-
-            dem = FindDEM(lat, lon, x0, y0);
-            if (dem)
+            for (x=0, lon=max_west; x<(int)width; x++, lon=max_west-(dpp*(double)x))
             {
-                mask=dem->mask[x0][y0];
-                loss=(dem->signal[x0][y0]);
+                if (lon<0.0)
+                    lon+=360.0;
 
-                match=255;
-
-                red=0;
-                green=0;
-                blue=0;
-
-                if (loss<=region.level[0])
-                    match=0;
-                else
+                dem = FindDEM(lat, lon, x0, y0);
+                if (dem)
                 {
-                    for (z=1; (z<region.levels && match==255); z++)
-                    {
-                        if (loss>=region.level[z-1] && loss<region.level[z])
-                            match=z;
-                    }
-                }
+                    mask=dem->mask[x0][y0];
+                    loss=(dem->signal[x0][y0]);
 
-                if (match<region.levels)
-                {
-                    if (smooth_contours && match>0)
-                    {
-                        red=(unsigned)interpolate(region.color[match-1][0],region.color[match][0],region.level[match-1],region.level[match],loss);
-                        green=(unsigned)interpolate(region.color[match-1][1],region.color[match][1],region.level[match-1],region.level[match],loss);
-                        blue=(unsigned)interpolate(region.color[match-1][2],region.color[match][2],region.level[match-1],region.level[match],loss);
-                    }
+                    match=255;
 
+                    red=0;
+                    green=0;
+                    blue=0;
+
+                    if (loss<=region.level[0])
+                        match=0;
                     else
                     {
-                        red=region.color[match][0];
-                        green=region.color[match][1];
-                        blue=region.color[match][2];
+                        for (z=1; (z<region.levels && match==255); z++)
+                        {
+                            if (loss>=region.level[z-1] && loss<region.level[z])
+                                match=z;
+                        }
                     }
-                }
 
-                if (mask&2)
-                {
-                    /* Text Labels: Red or otherwise */
-
-                    if (red>=180 && green<=75 && blue<=75 && loss!=0)
-                        pixel=RGB(255^red,255^green,255^blue);
-                    else
-                        pixel=COLOR_RED;
-                }
-                else if (mask&4)
-                {
-                    /* County Boundaries: Black */
-                    pixel=COLOR_BLACK;
-                }
-                else
-                {
-                    if (loss==0 || (contour_threshold!=0 && loss>abs(contour_threshold)))
+                    if (match<region.levels)
                     {
-                        if (ngs)  /* No terrain */
-                            pixel=COLOR_WHITE;
+                        if (smooth_contours && match>0)
+                        {
+                            red=(unsigned)interpolate(region.color[match-1][0],region.color[match][0],region.level[match-1],region.level[match],loss);
+                            green=(unsigned)interpolate(region.color[match-1][1],region.color[match][1],region.level[match-1],region.level[match],loss);
+                            blue=(unsigned)interpolate(region.color[match-1][2],region.color[match][2],region.level[match-1],region.level[match],loss);
+                        }
+
                         else
                         {
-                            /* Display land or sea elevation */
-
-                            if (dem->data[x0][y0]==0)
-                                pixel=COLOR_MEDIUMBLUE;
-                            else
-                            {
-                                terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
-                                pixel=RGB(terrain,terrain,terrain);
-                            }
+                            red=region.color[match][0];
+                            green=region.color[match][1];
+                            blue=region.color[match][2];
                         }
+                    }
+
+                    if (mask&2)
+                    {
+                        /* Text Labels: Red or otherwise */
+
+                        if (red>=180 && green<=75 && blue<=75 && loss!=0)
+                            pixel=RGB(255^red,255^green,255^blue);
+                        else
+                            pixel=COLOR_RED;
+                    }
+                    else if (mask&4)
+                    {
+                        /* County Boundaries: Black */
+                        pixel=COLOR_BLACK;
                     }
                     else
                     {
-                        /* Plot path loss in color */
-
-                        if (red!=0 || green!=0 || blue!=0)
-                            pixel=RGB(red,green,blue);
-
-                        else  /* terrain / sea-level */
+                        if (loss==0 || (contour_threshold!=0 && loss>abs(contour_threshold)))
                         {
-                            if (dem->data[x0][y0]==0)
-                                pixel=COLOR_MEDIUMBLUE;
+                            if (ngs)  /* No terrain */
+                                pixel=COLOR_WHITE;
                             else
                             {
-                                /* Elevation: Greyscale */
-                                terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
-                                pixel=RGB(terrain,terrain,terrain);
+                                /* Display land or sea elevation */
+
+                                if (dem->data[x0][y0]==0)
+                                    pixel=COLOR_MEDIUMBLUE;
+                                else
+                                {
+                                    terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
+                                    pixel=RGB(terrain,terrain,terrain);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            /* Plot path loss in color */
+
+                            if (red!=0 || green!=0 || blue!=0)
+                                pixel=RGB(red,green,blue);
+
+                            else  /* terrain / sea-level */
+                            {
+                                if (dem->data[x0][y0]==0)
+                                    pixel=COLOR_MEDIUMBLUE;
+                                else
+                                {
+                                    /* Elevation: Greyscale */
+                                    terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
+                                    pixel=RGB(terrain,terrain,terrain);
+                                }
                             }
                         }
                     }
                 }
-            }
-            else
-            {
-                /* We should never get here, but if */
-                /* we do, display the region as black */
-                pixel=COLOR_BLACK;
+                else
+                {
+                    /* We should never get here, but if */
+                    /* we do, display the region as black */
+                    pixel=COLOR_BLACK;
+                }
+
+                iw.AppendPixel(pixel);
             }
 
-            ImageWriterAppendPixel(&iw, pixel);
+            iw.EmitLine();
         }
 
-        ImageWriterEmitLine(&iw);
-    }
-
-    if (!kml && !geo)
-    {
-        /* Display legend along bottom of image
-         * if not generating .kml or .geo output.
-         */
-
-        colorwidth=(int)rint((float)width/(float)region.levels);
-
-        for (y0=0; y0<30; y0++)
+        if (!kml && !geo)
         {
-            for (x0=0; x0<(int)width; x0++)
+            /* Display legend along bottom of image
+             * if not generating .kml or .geo output.
+             */
+
+            colorwidth=(int)rint((float)width/(float)region.levels);
+
+            for (y0=0; y0<30; y0++)
             {
-                indx=x0/colorwidth;
-                x=x0%colorwidth;
-                level=region.level[indx];
+                for (x0=0; x0<(int)width; x0++)
+                {
+                    indx=x0/colorwidth;
+                    x=x0%colorwidth;
+                    level=region.level[indx];
 
-                hundreds=level/100;
+                    hundreds=level/100;
 
-                if (hundreds>0)
-                    level-=(hundreds*100);
-
-                tens=level/10;
-
-                if (tens>0)
-                    level-=(tens*10);
-
-                units=level;
-
-                if (y0>=8 && y0<=23)
-                {  
                     if (hundreds>0)
-                    {
-                        if (x>=11 && x<=18)	 
-                            if (fontdata[16*(hundreds+'0')+(y0-8)]&(128>>(x-11)))
-                                indx=255; 
-                    }
+                        level-=(hundreds*100);
 
-                    if (tens>0 || hundreds>0)
-                    {
-                        if (x>=19 && x<=26)	 
-                            if (fontdata[16*(tens+'0')+(y0-8)]&(128>>(x-19)))
+                    tens=level/10;
+
+                    if (tens>0)
+                        level-=(tens*10);
+
+                    units=level;
+
+                    if (y0>=8 && y0<=23)
+                    {  
+                        if (hundreds>0)
+                        {
+                            if (x>=11 && x<=18)	 
+                                if (fontdata[16*(hundreds+'0')+(y0-8)]&(128>>(x-11)))
+                                    indx=255; 
+                        }
+
+                        if (tens>0 || hundreds>0)
+                        {
+                            if (x>=19 && x<=26)	 
+                                if (fontdata[16*(tens+'0')+(y0-8)]&(128>>(x-19)))
+                                    indx=255;
+                        }
+
+                        if (x>=27 && x<=34)
+                            if (fontdata[16*(units+'0')+(y0-8)]&(128>>(x-27)))
+                                indx=255;
+
+                        if (x>=42 && x<=49)
+                            if (fontdata[16*('d')+(y0-8)]&(128>>(x-42)))
+                                indx=255;
+
+                        if (x>=50 && x<=57)
+                            if (fontdata[16*('B')+(y0-8)]&(128>>(x-50)))
                                 indx=255;
                     }
 
-                    if (x>=27 && x<=34)
-                        if (fontdata[16*(units+'0')+(y0-8)]&(128>>(x-27)))
-                            indx=255;
+                    if (indx>region.levels)
+                        pixel=COLOR_BLACK;
+                    else
+                    {
+                        red=region.color[indx][0];
+                        green=region.color[indx][1];
+                        blue=region.color[indx][2];
 
-                    if (x>=42 && x<=49)
-                        if (fontdata[16*('d')+(y0-8)]&(128>>(x-42)))
-                            indx=255;
+                        pixel=RGB(red,green,blue);
+                    }
 
-                    if (x>=50 && x<=57)
-                        if (fontdata[16*('B')+(y0-8)]&(128>>(x-50)))
-                            indx=255;
+                    iw.AppendPixel(pixel);
                 }
 
-                if (indx>region.levels)
-                    pixel=COLOR_BLACK;
-                else
-                {
-                    red=region.color[indx][0];
-                    green=region.color[indx][1];
-                    blue=region.color[indx][2];
-
-                    pixel=RGB(red,green,blue);
-                }
-
-                ImageWriterAppendPixel(&iw, pixel);
+                iw.EmitLine();
             }
-
-            ImageWriterEmitLine(&iw);
         }
-    }
 
-    ImageWriterFinish(&iw);
+        iw.Finish();
+    } catch (const std::exception& e) {
+        std::cerr << "Error writing " << mapfile << ": " << e.what() << std::endl;
+        return;
+    }
 
     if (kml)
     {
@@ -5164,80 +4981,82 @@ void WriteImageLR(char *filename, ImageType imagetype, bool geo, bool kml, bool 
         height=30*region.levels;
         width=100;
 
-        if (ImageWriterInit(&iw,ckfile,imagetype,width,height)<0) {
-            fprintf(stdout,"\nError writing \"%s\"!\n",ckfile);
-            fflush(stdout);
-            return;
-        }
+        try {
+            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height);
 
-        for (y0=0; y0<(int)height; y0++)
-        {
-            for (x0=0; x0<(int)width; x0++)
+            for (y0=0; y0<(int)height; y0++)
             {
-                indx=y0/30;
-                x=x0;
-                level=region.level[indx];
+                for (x0=0; x0<(int)width; x0++)
+                {
+                    indx=y0/30;
+                    x=x0;
+                    level=region.level[indx];
 
-                hundreds=level/100;
+                    hundreds=level/100;
 
-                if (hundreds>0)
-                    level-=(hundreds*100);
-
-                tens=level/10;
-
-                if (tens>0)
-                    level-=(tens*10);
-
-                units=level;
-
-                if ((y0%30)>=8 && (y0%30)<=23)
-                {  
                     if (hundreds>0)
-                    {
-                        if (x>=11 && x<=18)	 
-                            if (fontdata[16*(hundreds+'0')+((y0%30)-8)]&(128>>(x-11)))
-                                indx=255; 
-                    }
+                        level-=(hundreds*100);
 
-                    if (tens>0 || hundreds>0)
-                    {
-                        if (x>=19 && x<=26)	 
-                            if (fontdata[16*(tens+'0')+((y0%30)-8)]&(128>>(x-19)))
+                    tens=level/10;
+
+                    if (tens>0)
+                        level-=(tens*10);
+
+                    units=level;
+
+                    if ((y0%30)>=8 && (y0%30)<=23)
+                    {  
+                        if (hundreds>0)
+                        {
+                            if (x>=11 && x<=18)	 
+                                if (fontdata[16*(hundreds+'0')+((y0%30)-8)]&(128>>(x-11)))
+                                    indx=255; 
+                        }
+
+                        if (tens>0 || hundreds>0)
+                        {
+                            if (x>=19 && x<=26)	 
+                                if (fontdata[16*(tens+'0')+((y0%30)-8)]&(128>>(x-19)))
+                                    indx=255;
+                        }
+
+                        if (x>=27 && x<=34)
+                            if (fontdata[16*(units+'0')+((y0%30)-8)]&(128>>(x-27)))
+                                indx=255;
+
+                        if (x>=42 && x<=49)
+                            if (fontdata[16*('d')+((y0%30)-8)]&(128>>(x-42)))
+                                indx=255;
+
+                        if (x>=50 && x<=57)
+                            if (fontdata[16*('B')+((y0%30)-8)]&(128>>(x-50)))
                                 indx=255;
                     }
 
-                    if (x>=27 && x<=34)
-                        if (fontdata[16*(units+'0')+((y0%30)-8)]&(128>>(x-27)))
-                            indx=255;
+                    if (indx>region.levels) {
+                        pixel=COLOR_BLACK;
+                    }
+                    else
+                    {
+                        red=region.color[indx][0];
+                        green=region.color[indx][1];
+                        blue=region.color[indx][2];
 
-                    if (x>=42 && x<=49)
-                        if (fontdata[16*('d')+((y0%30)-8)]&(128>>(x-42)))
-                            indx=255;
+                        pixel=RGB(red,green,blue);
+                    }
 
-                    if (x>=50 && x<=57)
-                        if (fontdata[16*('B')+((y0%30)-8)]&(128>>(x-50)))
-                            indx=255;
-                }
+                    iw.AppendPixel(pixel);
+                } 
 
-                if (indx>region.levels) {
-                    pixel=COLOR_BLACK;
-                }
-                else
-                {
-                    red=region.color[indx][0];
-                    green=region.color[indx][1];
-                    blue=region.color[indx][2];
+                iw.EmitLine();
+            }
 
-                    pixel=RGB(red,green,blue);
-                }
+            iw.Finish();
 
-                ImageWriterAppendPixel(&iw, pixel);
-            } 
-
-            ImageWriterEmitLine(&iw);
+        } catch (const std::exception& e) {
+            std::cerr << "Error writing " << ckfile << ": " << e.what() << std::endl;
+            return;
         }
-
-        ImageWriterFinish(&iw);
 
 #if DO_KMZ
         bool success = false;
@@ -5315,7 +5134,6 @@ void WriteImageSS(char *filename, ImageType imagetype, bool geo, bool kml, bool 
     FILE *fd;
 
     Pixel pixel = 0;
-    ImageWriter iw;
 
     one_over_gamma=1.0/GAMMA;
     conversion=255.0/pow((double)(max_elevation-min_elevation),one_over_gamma);
@@ -5475,226 +5293,228 @@ void WriteImageSS(char *filename, ImageType imagetype, bool geo, bool kml, bool 
     fprintf(stdout,"\nWriting Signal Strength map \"%s\" (%ux%u image)... ",mapfile,imgwidth,imgheight);
     fflush(stdout);
 
-    if (ImageWriterInit(&iw,mapfile,imagetype,imgwidth,imgheight)<0) {
-        fprintf(stdout,"\nError writing \"%s\"!\n",mapfile);
-        fflush(stdout);
-        return;
-    }
+    try {
+        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight);
 
-    for (y=0, lat=north; y<(int)height; y++, lat=north-(dpp*(double)y))
-    {
-        for (x=0, lon=max_west; x<(int)width; x++, lon=max_west-(dpp*(double)x))
+        for (y=0, lat=north; y<(int)height; y++, lat=north-(dpp*(double)y))
         {
-            if (lon<0.0)
-                lon+=360.0;
-
-            dem = FindDEM(lat, lon, x0, y0);
-            if (dem)
+            for (x=0, lon=max_west; x<(int)width; x++, lon=max_west-(dpp*(double)x))
             {
-                mask=dem->mask[x0][y0];
-                signal=(dem->signal[x0][y0])-100;
+                if (lon<0.0)
+                    lon+=360.0;
 
-                match=255;
-
-                red=0;
-                green=0;
-                blue=0;
-
-                if (signal>=region.level[0])
-                    match=0;
-                else
+                dem = FindDEM(lat, lon, x0, y0);
+                if (dem)
                 {
-                    for (z=1; (z<region.levels && match==255); z++)
-                    {
-                        if (signal<region.level[z-1] && signal>=region.level[z])
-                            match=z;
-                    }
-                }
+                    mask=dem->mask[x0][y0];
+                    signal=(dem->signal[x0][y0])-100;
 
-                if (match<region.levels)
-                {
-                    if (smooth_contours && match>0)
-                    {
-                        red=(unsigned)interpolate(region.color[match][0],region.color[match-1][0],region.level[match],region.level[match-1],signal);
-                        green=(unsigned)interpolate(region.color[match][1],region.color[match-1][1],region.level[match],region.level[match-1],signal);
-                        blue=(unsigned)interpolate(region.color[match][2],region.color[match-1][2],region.level[match],region.level[match-1],signal);
-                    }
+                    match=255;
 
+                    red=0;
+                    green=0;
+                    blue=0;
+
+                    if (signal>=region.level[0])
+                        match=0;
                     else
                     {
-                        red=region.color[match][0];
-                        green=region.color[match][1];
-                        blue=region.color[match][2];
-                    }
-                }
-
-                if (mask&2) 
-                {
-                    /* Text Labels: Red or otherwise */
-
-                    if (red>=180 && green<=75 && blue<=75)
-                        pixel=RGB(255^red,255^green,255^blue);
-                    else
-                        pixel=COLOR_RED;
-                }
-                else if (mask&4)
-                {
-                    /* County Boundaries: Black */
-                    pixel=COLOR_BLACK;
-                } 
-                else
-                {
-                    if (contour_threshold!=0 && signal<contour_threshold)
-                    {
-                        if (ngs)  /* No terrain */
-                            pixel=COLOR_WHITE;
-                        else
+                        for (z=1; (z<region.levels && match==255); z++)
                         {
-                            /* Display land or sea elevation */
-
-                            if (dem->data[x0][y0]==0)
-                                pixel=COLOR_MEDIUMBLUE;
-                            else
-                            {
-                                terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
-                                pixel=RGB(terrain,terrain,terrain);
-                            }
+                            if (signal<region.level[z-1] && signal>=region.level[z])
+                                match=z;
                         }
                     }
 
+                    if (match<region.levels)
+                    {
+                        if (smooth_contours && match>0)
+                        {
+                            red=(unsigned)interpolate(region.color[match][0],region.color[match-1][0],region.level[match],region.level[match-1],signal);
+                            green=(unsigned)interpolate(region.color[match][1],region.color[match-1][1],region.level[match],region.level[match-1],signal);
+                            blue=(unsigned)interpolate(region.color[match][2],region.color[match-1][2],region.level[match],region.level[match-1],signal);
+                        }
+
+                        else
+                        {
+                            red=region.color[match][0];
+                            green=region.color[match][1];
+                            blue=region.color[match][2];
+                        }
+                    }
+
+                    if (mask&2) 
+                    {
+                        /* Text Labels: Red or otherwise */
+
+                        if (red>=180 && green<=75 && blue<=75)
+                            pixel=RGB(255^red,255^green,255^blue);
+                        else
+                            pixel=COLOR_RED;
+                    }
+                    else if (mask&4)
+                    {
+                        /* County Boundaries: Black */
+                        pixel=COLOR_BLACK;
+                    } 
                     else
                     {
-                        /* Plot field strength regions in color */
-
-                        if (red!=0 || green!=0 || blue!=0)
-                            pixel=RGB(red,green,blue);
-
-                        else  /* terrain / sea-level */
+                        if (contour_threshold!=0 && signal<contour_threshold)
                         {
-                            if (ngs)
+                            if (ngs)  /* No terrain */
                                 pixel=COLOR_WHITE;
                             else
                             {
+                                /* Display land or sea elevation */
+
                                 if (dem->data[x0][y0]==0)
                                     pixel=COLOR_MEDIUMBLUE;
                                 else
                                 {
-                                    /* Elevation: Greyscale */
                                     terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
                                     pixel=RGB(terrain,terrain,terrain);
                                 }
                             }
                         }
+
+                        else
+                        {
+                            /* Plot field strength regions in color */
+
+                            if (red!=0 || green!=0 || blue!=0)
+                                pixel=RGB(red,green,blue);
+
+                            else  /* terrain / sea-level */
+                            {
+                                if (ngs)
+                                    pixel=COLOR_WHITE;
+                                else
+                                {
+                                    if (dem->data[x0][y0]==0)
+                                        pixel=COLOR_MEDIUMBLUE;
+                                    else
+                                    {
+                                        /* Elevation: Greyscale */
+                                        terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
+                                        pixel=RGB(terrain,terrain,terrain);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+
+                else
+                {
+                    /* We should never get here, but if */
+                    /* we do, display the region as black */
+
+                    pixel=COLOR_BLACK;
+                }
+
+                iw.AppendPixel(pixel);
             }
 
-            else
-            {
-                /* We should never get here, but if */
-                /* we do, display the region as black */
-
-                pixel=COLOR_BLACK;
-            }
-
-            ImageWriterAppendPixel(&iw, pixel);
+            iw.EmitLine();
         }
 
-        ImageWriterEmitLine(&iw);
-    }
-
-    if (!kml && !geo)
-    {
-        /* Display legend along bottom of image
-         * if not generating .kml or .geo output.
-         */
-
-        colorwidth=(int)rint((float)width/(float)region.levels);
-
-        for (y0=0; y0<30; y0++)
+        if (!kml && !geo)
         {
-            for (x0=0; x0<(int)width; x0++)
+            /* Display legend along bottom of image
+             * if not generating .kml or .geo output.
+             */
+
+            colorwidth=(int)rint((float)width/(float)region.levels);
+
+            for (y0=0; y0<30; y0++)
             {
-                indx=x0/colorwidth;
-                x=x0%colorwidth;
-                level=region.level[indx];
+                for (x0=0; x0<(int)width; x0++)
+                {
+                    indx=x0/colorwidth;
+                    x=x0%colorwidth;
+                    level=region.level[indx];
 
-                hundreds=level/100;
+                    hundreds=level/100;
 
-                if (hundreds>0)
-                    level-=(hundreds*100);
-
-                tens=level/10;
-
-                if (tens>0)
-                    level-=(tens*10);
-
-                units=level;
-
-                if (y0>=8 && y0<=23)
-                {  
                     if (hundreds>0)
-                    {
-                        if (x>=5 && x<=12)	 
-                            if (fontdata[16*(hundreds+'0')+(y0-8)]&(128>>(x-5)))
-                                indx=255; 
-                    }
+                        level-=(hundreds*100);
 
-                    if (tens>0 || hundreds>0)
-                    {
-                        if (x>=13 && x<=20)	 
-                            if (fontdata[16*(tens+'0')+(y0-8)]&(128>>(x-13)))
+                    tens=level/10;
+
+                    if (tens>0)
+                        level-=(tens*10);
+
+                    units=level;
+
+                    if (y0>=8 && y0<=23)
+                    {  
+                        if (hundreds>0)
+                        {
+                            if (x>=5 && x<=12)	 
+                                if (fontdata[16*(hundreds+'0')+(y0-8)]&(128>>(x-5)))
+                                    indx=255; 
+                        }
+
+                        if (tens>0 || hundreds>0)
+                        {
+                            if (x>=13 && x<=20)	 
+                                if (fontdata[16*(tens+'0')+(y0-8)]&(128>>(x-13)))
+                                    indx=255;
+                        }
+
+                        if (x>=21 && x<=28)
+                            if (fontdata[16*(units+'0')+(y0-8)]&(128>>(x-21)))
+                                indx=255;
+
+                        if (x>=36 && x<=43)
+                            if (fontdata[16*('d')+(y0-8)]&(128>>(x-36)))
+                                indx=255;
+
+                        if (x>=44 && x<=51)
+                            if (fontdata[16*('B')+(y0-8)]&(128>>(x-44)))
+                                indx=255;
+
+                        if (x>=52 && x<=59)
+                            if (fontdata[16*(230)+(y0-8)]&(128>>(x-52)))
+                                indx=255;
+
+                        if (x>=60 && x<=67)
+                            if (fontdata[16*('V')+(y0-8)]&(128>>(x-60)))
+                                indx=255;
+
+                        if (x>=68 && x<=75)
+                            if (fontdata[16*('/')+(y0-8)]&(128>>(x-68)))
+                                indx=255;
+
+                        if (x>=76 && x<=83)
+                            if (fontdata[16*('m')+(y0-8)]&(128>>(x-76)))
                                 indx=255;
                     }
 
-                    if (x>=21 && x<=28)
-                        if (fontdata[16*(units+'0')+(y0-8)]&(128>>(x-21)))
-                            indx=255;
+                    if (indx>region.levels)
+                        pixel=COLOR_BLACK;
+                    else
+                    {
+                        red=region.color[indx][0];
+                        green=region.color[indx][1];
+                        blue=region.color[indx][2];
 
-                    if (x>=36 && x<=43)
-                        if (fontdata[16*('d')+(y0-8)]&(128>>(x-36)))
-                            indx=255;
+                        pixel=RGB(red,green,blue);
+                    }
 
-                    if (x>=44 && x<=51)
-                        if (fontdata[16*('B')+(y0-8)]&(128>>(x-44)))
-                            indx=255;
-
-                    if (x>=52 && x<=59)
-                        if (fontdata[16*(230)+(y0-8)]&(128>>(x-52)))
-                            indx=255;
-
-                    if (x>=60 && x<=67)
-                        if (fontdata[16*('V')+(y0-8)]&(128>>(x-60)))
-                            indx=255;
-
-                    if (x>=68 && x<=75)
-                        if (fontdata[16*('/')+(y0-8)]&(128>>(x-68)))
-                            indx=255;
-
-                    if (x>=76 && x<=83)
-                        if (fontdata[16*('m')+(y0-8)]&(128>>(x-76)))
-                            indx=255;
+                    iw.AppendPixel(pixel);
                 }
 
-                if (indx>region.levels)
-                    pixel=COLOR_BLACK;
-                else
-                {
-                    red=region.color[indx][0];
-                    green=region.color[indx][1];
-                    blue=region.color[indx][2];
-
-                    pixel=RGB(red,green,blue);
-                }
-
-                ImageWriterAppendPixel(&iw, pixel);
+                iw.EmitLine();
             }
-
-            ImageWriterEmitLine(&iw);
         }
-    }
 
-    ImageWriterFinish(&iw);
+        iw.Finish();
+
+    } catch (const std::exception& e) {
+        std::cerr << "Error writing " << mapfile << ": " << e.what() << std::endl;
+        return;
+    }
 
     if (kml)
     {
@@ -5703,97 +5523,99 @@ void WriteImageSS(char *filename, ImageType imagetype, bool geo, bool kml, bool 
         height=30*region.levels;
         width=100;
 
-        if (ImageWriterInit(&iw,ckfile,imagetype,width,height)<0) {
-            fprintf(stdout,"\nError writing \"%s\"!\n",ckfile);
-            fflush(stdout);
-            return;
-        }
+        try {
+            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height);
 
-        for (y0=0; y0<(int)height; y0++)
-        {
-            for (x0=0; x0<(int)width; x0++)
+            for (y0=0; y0<(int)height; y0++)
             {
-                indx=y0/30;
-                x=x0;
+                for (x0=0; x0<(int)width; x0++)
+                {
+                    indx=y0/30;
+                    x=x0;
 
-                level=region.level[indx];
+                    level=region.level[indx];
 
-                hundreds=level/100;
+                    hundreds=level/100;
 
-                if (hundreds>0)
-                    level-=(hundreds*100);
-
-                tens=level/10;
-
-                if (tens>0)
-                    level-=(tens*10);
-
-                units=level;
-
-                if ((y0%30)>=8 && (y0%30)<=23)
-                {  
                     if (hundreds>0)
-                    {
-                        if (x>=5 && x<=12)	 
-                            if (fontdata[16*(hundreds+'0')+((y0%30)-8)]&(128>>(x-5)))
-                                indx=255; 
-                    }
+                        level-=(hundreds*100);
 
-                    if (tens>0 || hundreds>0)
-                    {
-                        if (x>=13 && x<=20)	 
-                            if (fontdata[16*(tens+'0')+((y0%30)-8)]&(128>>(x-13)))
+                    tens=level/10;
+
+                    if (tens>0)
+                        level-=(tens*10);
+
+                    units=level;
+
+                    if ((y0%30)>=8 && (y0%30)<=23)
+                    {  
+                        if (hundreds>0)
+                        {
+                            if (x>=5 && x<=12)	 
+                                if (fontdata[16*(hundreds+'0')+((y0%30)-8)]&(128>>(x-5)))
+                                    indx=255; 
+                        }
+
+                        if (tens>0 || hundreds>0)
+                        {
+                            if (x>=13 && x<=20)	 
+                                if (fontdata[16*(tens+'0')+((y0%30)-8)]&(128>>(x-13)))
+                                    indx=255;
+                        }
+
+                        if (x>=21 && x<=28)
+                            if (fontdata[16*(units+'0')+((y0%30)-8)]&(128>>(x-21)))
+                                indx=255;
+
+                        if (x>=36 && x<=43)
+                            if (fontdata[16*('d')+((y0%30)-8)]&(128>>(x-36)))
+                                indx=255;
+
+                        if (x>=44 && x<=51)
+                            if (fontdata[16*('B')+((y0%30)-8)]&(128>>(x-44)))
+                                indx=255;
+
+                        if (x>=52 && x<=59)
+                            if (fontdata[16*(230)+((y0%30)-8)]&(128>>(x-52)))
+                                indx=255;
+
+                        if (x>=60 && x<=67)
+                            if (fontdata[16*('V')+((y0%30)-8)]&(128>>(x-60)))
+                                indx=255;
+
+                        if (x>=68 && x<=75)
+                            if (fontdata[16*('/')+((y0%30)-8)]&(128>>(x-68)))
+                                indx=255;
+
+                        if (x>=76 && x<=83)
+                            if (fontdata[16*('m')+((y0%30)-8)]&(128>>(x-76)))
                                 indx=255;
                     }
 
-                    if (x>=21 && x<=28)
-                        if (fontdata[16*(units+'0')+((y0%30)-8)]&(128>>(x-21)))
-                            indx=255;
+                    if (indx>region.levels) {
+                        pixel=COLOR_BLACK;
+                    }
+                    else
+                    {
+                        red=region.color[indx][0];
+                        green=region.color[indx][1];
+                        blue=region.color[indx][2];
 
-                    if (x>=36 && x<=43)
-                        if (fontdata[16*('d')+((y0%30)-8)]&(128>>(x-36)))
-                            indx=255;
+                        pixel=RGB(red,green,blue);
+                    }
 
-                    if (x>=44 && x<=51)
-                        if (fontdata[16*('B')+((y0%30)-8)]&(128>>(x-44)))
-                            indx=255;
+                    iw.AppendPixel(pixel);
+                } 
 
-                    if (x>=52 && x<=59)
-                        if (fontdata[16*(230)+((y0%30)-8)]&(128>>(x-52)))
-                            indx=255;
+                iw.EmitLine();
+            }
 
-                    if (x>=60 && x<=67)
-                        if (fontdata[16*('V')+((y0%30)-8)]&(128>>(x-60)))
-                            indx=255;
+            iw.Finish();
 
-                    if (x>=68 && x<=75)
-                        if (fontdata[16*('/')+((y0%30)-8)]&(128>>(x-68)))
-                            indx=255;
-
-                    if (x>=76 && x<=83)
-                        if (fontdata[16*('m')+((y0%30)-8)]&(128>>(x-76)))
-                            indx=255;
-                }
-
-                if (indx>region.levels) {
-                    pixel=COLOR_BLACK;
-                }
-                else
-                {
-                    red=region.color[indx][0];
-                    green=region.color[indx][1];
-                    blue=region.color[indx][2];
-
-                    pixel=RGB(red,green,blue);
-                }
-
-                ImageWriterAppendPixel(&iw, pixel);
-            } 
-
-            ImageWriterEmitLine(&iw);
+        } catch (const std::exception& e) {
+            std::cerr << "Error writing " << ckfile << ": " << e.what() << std::endl;
+            return;
         }
-
-        ImageWriterFinish(&iw);
 
 #if DO_KMZ
         bool success = false;
@@ -5868,7 +5690,6 @@ void WriteImageDBM(char *filename, ImageType imagetype, bool geo, bool kml, bool
     FILE *fd;
 
     Pixel pixel = 0;
-    ImageWriter iw;
 
     one_over_gamma=1.0/GAMMA;
     conversion=255.0/pow((double)(max_elevation-min_elevation),one_over_gamma);
@@ -6025,261 +5846,262 @@ void WriteImageDBM(char *filename, ImageType imagetype, bool geo, bool kml, bool
     fprintf(stdout,"\nWriting Power Level (dBm) map \"%s\" (%ux%u image)... ",mapfile,imgwidth,imgheight);
     fflush(stdout);
 
-    if (ImageWriterInit(&iw,mapfile,imagetype,imgwidth,imgheight)<0) {
-        fprintf(stdout,"\nError writing \"%s\"!\n",mapfile);
-        fflush(stdout);
-        return;
-    }
+    try {
+        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight);
 
-    for (y=0, lat=north; y<(int)height; y++, lat=north-(dpp*(double)y))
-    {
-        for (x=0, lon=max_west; x<(int)width; x++, lon=max_west-(dpp*(double)x))
+        for (y=0, lat=north; y<(int)height; y++, lat=north-(dpp*(double)y))
         {
-            if (lon<0.0)
-                lon+=360.0;
-
-            dem = FindDEM(lat, lon, x0, y0);
-            if (dem)
+            for (x=0, lon=max_west; x<(int)width; x++, lon=max_west-(dpp*(double)x))
             {
-                mask=dem->mask[x0][y0];
-                dBm=(dem->signal[x0][y0])-200;
+                if (lon<0.0)
+                    lon+=360.0;
 
-                match=255;
-
-                red=0;
-                green=0;
-                blue=0;
-
-                if (dBm>=region.level[0])
-                    match=0;
-                else
+                dem = FindDEM(lat, lon, x0, y0);
+                if (dem)
                 {
-                    for (z=1; (z<region.levels && match==255); z++)
-                    {
-                        if (dBm<region.level[z-1] && dBm>=region.level[z])
-                            match=z;
-                    }
-                }
+                    mask=dem->mask[x0][y0];
+                    dBm=(dem->signal[x0][y0])-200;
 
-                if (match<region.levels)
-                {
-                    if (smooth_contours && match>0)
-                    {
-                        red=(unsigned)interpolate(region.color[match][0],region.color[match-1][0],region.level[match],region.level[match-1],dBm);
-                        green=(unsigned)interpolate(region.color[match][1],region.color[match-1][1],region.level[match],region.level[match-1],dBm);
-                        blue=(unsigned)interpolate(region.color[match][2],region.color[match-1][2],region.level[match],region.level[match-1],dBm);
-                    }
+                    match=255;
 
+                    red=0;
+                    green=0;
+                    blue=0;
+
+                    if (dBm>=region.level[0])
+                        match=0;
                     else
                     {
-                        red=region.color[match][0];
-                        green=region.color[match][1];
-                        blue=region.color[match][2];
-                    }
-                }
-
-                if (mask&2) 
-                {
-                    /* Text Labels: Red or otherwise */
-
-                    if (red>=180 && green<=75 && blue<=75 && dBm!=0)
-                        pixel=RGB(255^red,255^green,255^blue);
-                    else
-                        pixel=COLOR_RED;
-                }
-                else if (mask&4)
-                {
-                    /* County Boundaries: Black */
-                    pixel=COLOR_BLACK;
-                }
-                else
-                {
-                    if (contour_threshold!=0 && dBm<contour_threshold)
-                    {
-                        if (ngs) /* No terrain */
-                            pixel=COLOR_WHITE;
-                        else
+                        for (z=1; (z<region.levels && match==255); z++)
                         {
-                            /* Display land or sea elevation */
-
-                            if (dem->data[x0][y0]==0)
-                                pixel=COLOR_MEDIUMBLUE;
-                            else
-                            {
-                                terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
-                                pixel=RGB(terrain,terrain,terrain);
-                            }
+                            if (dBm<region.level[z-1] && dBm>=region.level[z])
+                                match=z;
                         }
                     }
 
+                    if (match<region.levels)
+                    {
+                        if (smooth_contours && match>0)
+                        {
+                            red=(unsigned)interpolate(region.color[match][0],region.color[match-1][0],region.level[match],region.level[match-1],dBm);
+                            green=(unsigned)interpolate(region.color[match][1],region.color[match-1][1],region.level[match],region.level[match-1],dBm);
+                            blue=(unsigned)interpolate(region.color[match][2],region.color[match-1][2],region.level[match],region.level[match-1],dBm);
+                        }
+
+                        else
+                        {
+                            red=region.color[match][0];
+                            green=region.color[match][1];
+                            blue=region.color[match][2];
+                        }
+                    }
+
+                    if (mask&2) 
+                    {
+                        /* Text Labels: Red or otherwise */
+
+                        if (red>=180 && green<=75 && blue<=75 && dBm!=0)
+                            pixel=RGB(255^red,255^green,255^blue);
+                        else
+                            pixel=COLOR_RED;
+                    }
+                    else if (mask&4)
+                    {
+                        /* County Boundaries: Black */
+                        pixel=COLOR_BLACK;
+                    }
                     else
                     {
-                        /* Plot signal power level regions in color */
-
-                        if (red!=0 || green!=0 || blue!=0)
-                            pixel=RGB(red,green,blue);
-
-                        else  /* terrain / sea-level */
+                        if (contour_threshold!=0 && dBm<contour_threshold)
                         {
-                            if (ngs)
+                            if (ngs) /* No terrain */
                                 pixel=COLOR_WHITE;
                             else
                             {
+                                /* Display land or sea elevation */
+
                                 if (dem->data[x0][y0]==0)
                                     pixel=COLOR_MEDIUMBLUE;
                                 else
                                 {
-                                    /* Elevation: Greyscale */
                                     terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
                                     pixel=RGB(terrain,terrain,terrain);
                                 }
                             }
                         }
-                    }
-                }
-            }
-
-            else
-            {
-                /* We should never get here, but if */
-                /* we do, display the region as black */
-                pixel=COLOR_BLACK;
-            }
-
-            ImageWriterAppendPixel(&iw, pixel);
-        }
-
-        ImageWriterEmitLine(&iw);
-    }
-
-    if (!kml && !geo)
-    {
-        /* Display legend along bottom of image
-           if not generating .kml or .geo output. */
-
-        colorwidth=(int)rint((float)width/(float)region.levels);
-
-        for (y0=0; y0<30; y0++)
-        {
-            for (x0=0; x0<(int)width; x0++)
-            {
-                indx=x0/colorwidth;
-                x=x0%colorwidth;
-
-                level=abs(region.level[indx]);
-
-                hundreds=level/100;
-
-                if (hundreds>0)
-                    level-=(hundreds*100);
-
-                tens=level/10;
-
-                if (tens>0)
-                    level-=(tens*10);
-
-                units=level;
-
-                if (y0>=8 && y0<=23)
-                {
-                    if (hundreds>0)
-                    {
-                        if (region.level[indx]<0)
-                        {
-                            if (x>=5 && x<=12)
-                                if (fontdata[16*('-')+(y0-8)]&(128>>(x-5)))
-                                    indx=255;
-                        }
 
                         else
                         {
-                            if (x>=5 && x<=12)
-                                if (fontdata[16*('+')+(y0-8)]&(128>>(x-5)))
-                                    indx=255;
+                            /* Plot signal power level regions in color */
+
+                            if (red!=0 || green!=0 || blue!=0)
+                                pixel=RGB(red,green,blue);
+
+                            else  /* terrain / sea-level */
+                            {
+                                if (ngs)
+                                    pixel=COLOR_WHITE;
+                                else
+                                {
+                                    if (dem->data[x0][y0]==0)
+                                        pixel=COLOR_MEDIUMBLUE;
+                                    else
+                                    {
+                                        /* Elevation: Greyscale */
+                                        terrain=(unsigned)(0.5+pow((double)(dem->data[x0][y0]-min_elevation),one_over_gamma)*conversion);
+                                        pixel=RGB(terrain,terrain,terrain);
+                                    }
+                                }
+                            }
                         }
-
-                        if (x>=13 && x<=20)	 
-                            if (fontdata[16*(hundreds+'0')+(y0-8)]&(128>>(x-13)))
-                                indx=255; 
                     }
+                }
 
-                    if (tens>0 || hundreds>0)
+                else
+                {
+                    /* We should never get here, but if */
+                    /* we do, display the region as black */
+                    pixel=COLOR_BLACK;
+                }
+
+                iw.AppendPixel(pixel);
+            }
+
+            iw.EmitLine();
+        }
+
+        if (!kml && !geo)
+        {
+            /* Display legend along bottom of image
+               if not generating .kml or .geo output. */
+
+            colorwidth=(int)rint((float)width/(float)region.levels);
+
+            for (y0=0; y0<30; y0++)
+            {
+                for (x0=0; x0<(int)width; x0++)
+                {
+                    indx=x0/colorwidth;
+                    x=x0%colorwidth;
+
+                    level=abs(region.level[indx]);
+
+                    hundreds=level/100;
+
+                    if (hundreds>0)
+                        level-=(hundreds*100);
+
+                    tens=level/10;
+
+                    if (tens>0)
+                        level-=(tens*10);
+
+                    units=level;
+
+                    if (y0>=8 && y0<=23)
                     {
-                        if (hundreds==0)
+                        if (hundreds>0)
                         {
                             if (region.level[indx]<0)
                             {
-                                if (x>=13 && x<=20)
-                                    if (fontdata[16*('-')+(y0-8)]&(128>>(x-13)))
+                                if (x>=5 && x<=12)
+                                    if (fontdata[16*('-')+(y0-8)]&(128>>(x-5)))
                                         indx=255;
                             }
 
                             else
                             {
-                                if (x>=13 && x<=20)
-                                    if (fontdata[16*('+')+(y0-8)]&(128>>(x-13)))
+                                if (x>=5 && x<=12)
+                                    if (fontdata[16*('+')+(y0-8)]&(128>>(x-5)))
+                                        indx=255;
+                            }
+
+                            if (x>=13 && x<=20)	 
+                                if (fontdata[16*(hundreds+'0')+(y0-8)]&(128>>(x-13)))
+                                    indx=255; 
+                        }
+
+                        if (tens>0 || hundreds>0)
+                        {
+                            if (hundreds==0)
+                            {
+                                if (region.level[indx]<0)
+                                {
+                                    if (x>=13 && x<=20)
+                                        if (fontdata[16*('-')+(y0-8)]&(128>>(x-13)))
+                                            indx=255;
+                                }
+
+                                else
+                                {
+                                    if (x>=13 && x<=20)
+                                        if (fontdata[16*('+')+(y0-8)]&(128>>(x-13)))
+                                            indx=255;
+                                }
+                            }
+
+                            if (x>=21 && x<=28)	 
+                                if (fontdata[16*(tens+'0')+(y0-8)]&(128>>(x-21)))
+                                    indx=255;
+                        }
+
+                        if (hundreds==0 && tens==0)
+                        {
+                            if (region.level[indx]<0)
+                            {
+                                if (x>=21 && x<=28)
+                                    if (fontdata[16*('-')+(y0-8)]&(128>>(x-21)))
+                                        indx=255;
+                            }
+
+                            else
+                            {
+                                if (x>=21 && x<=28)
+                                    if (fontdata[16*('+')+(y0-8)]&(128>>(x-21)))
                                         indx=255;
                             }
                         }
 
-                        if (x>=21 && x<=28)	 
-                            if (fontdata[16*(tens+'0')+(y0-8)]&(128>>(x-21)))
+                        if (x>=29 && x<=36)
+                            if (fontdata[16*(units+'0')+(y0-8)]&(128>>(x-29)))
+                                indx=255;
+
+                        if (x>=37 && x<=44)
+                            if (fontdata[16*('d')+(y0-8)]&(128>>(x-37)))
+                                indx=255;
+
+                        if (x>=45 && x<=52)
+                            if (fontdata[16*('B')+(y0-8)]&(128>>(x-45)))
+                                indx=255;
+
+                        if (x>=53 && x<=60)
+                            if (fontdata[16*('m')+(y0-8)]&(128>>(x-53)))
                                 indx=255;
                     }
 
-                    if (hundreds==0 && tens==0)
+                    if (indx>region.levels)
+                        pixel=COLOR_BLACK;
+                    else
                     {
-                        if (region.level[indx]<0)
-                        {
-                            if (x>=21 && x<=28)
-                                if (fontdata[16*('-')+(y0-8)]&(128>>(x-21)))
-                                    indx=255;
-                        }
+                        red=region.color[indx][0];
+                        green=region.color[indx][1];
+                        blue=region.color[indx][2];
 
-                        else
-                        {
-                            if (x>=21 && x<=28)
-                                if (fontdata[16*('+')+(y0-8)]&(128>>(x-21)))
-                                    indx=255;
-                        }
+                        pixel=RGB(red,green,blue);
                     }
 
-                    if (x>=29 && x<=36)
-                        if (fontdata[16*(units+'0')+(y0-8)]&(128>>(x-29)))
-                            indx=255;
+                    iw.AppendPixel(pixel);
+                } 
 
-                    if (x>=37 && x<=44)
-                        if (fontdata[16*('d')+(y0-8)]&(128>>(x-37)))
-                            indx=255;
-
-                    if (x>=45 && x<=52)
-                        if (fontdata[16*('B')+(y0-8)]&(128>>(x-45)))
-                            indx=255;
-
-                    if (x>=53 && x<=60)
-                        if (fontdata[16*('m')+(y0-8)]&(128>>(x-53)))
-                            indx=255;
-                }
-
-                if (indx>region.levels)
-                    pixel=COLOR_BLACK;
-                else
-                {
-                    red=region.color[indx][0];
-                    green=region.color[indx][1];
-                    blue=region.color[indx][2];
-
-                    pixel=RGB(red,green,blue);
-                }
-
-                ImageWriterAppendPixel(&iw, pixel);
-            } 
-
-            ImageWriterEmitLine(&iw);
+                iw.EmitLine();
+            }
         }
-    }
 
-    ImageWriterFinish(&iw);
+        iw.Finish();
+    } catch (const std::exception& e) {
+        std::cerr << "Error writing " << mapfile << ": " << e.what() << std::endl;
+        return;
+    }
 
     if (kml)
     {
@@ -6287,134 +6109,136 @@ void WriteImageDBM(char *filename, ImageType imagetype, bool geo, bool kml, bool
         height=30*region.levels;
         width=100;
 
-        if (ImageWriterInit(&iw,ckfile,imagetype,width,height)<0) {
-            fprintf(stdout,"\nError writing \"%s\"!\n",ckfile);
-            fflush(stdout);
-            return;
-        }
+        try {
+            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height);
 
-        for (y0=0; y0<(int)height; y0++)
-        {
-            for (x0=0; x0<(int)width; x0++)
+            for (y0=0; y0<(int)height; y0++)
             {
-                indx=y0/30;
-                x=x0;
-
-                level=abs(region.level[indx]);
-
-                hundreds=level/100;
-
-                if (hundreds>0)
-                    level-=(hundreds*100);
-
-                tens=level/10;
-
-                if (tens>0)
-                    level-=(tens*10);
-
-                units=level;
-
-
-                if ((y0%30)>=8 && (y0%30)<=23)
+                for (x0=0; x0<(int)width; x0++)
                 {
+                    indx=y0/30;
+                    x=x0;
+
+                    level=abs(region.level[indx]);
+
+                    hundreds=level/100;
+
                     if (hundreds>0)
+                        level-=(hundreds*100);
+
+                    tens=level/10;
+
+                    if (tens>0)
+                        level-=(tens*10);
+
+                    units=level;
+
+
+                    if ((y0%30)>=8 && (y0%30)<=23)
                     {
-                        if (region.level[indx]<0)
-                        {
-                            if (x>=5 && x<=12)
-                                if (fontdata[16*('-')+((y0%30)-8)]&(128>>(x-5)))
-                                    indx=255;
-                        }
-
-                        else
-                        {
-                            if (x>=5 && x<=12)
-                                if (fontdata[16*('+')+((y0%30)-8)]&(128>>(x-5)))
-                                    indx=255;
-                        }
-
-                        if (x>=13 && x<=20)	 
-                            if (fontdata[16*(hundreds+'0')+((y0%30)-8)]&(128>>(x-13)))
-                                indx=255; 
-                    }
-
-                    if (tens>0 || hundreds>0)
-                    {
-                        if (hundreds==0)
+                        if (hundreds>0)
                         {
                             if (region.level[indx]<0)
                             {
-                                if (x>=13 && x<=20)
-                                    if (fontdata[16*('-')+((y0%30)-8)]&(128>>(x-13)))
+                                if (x>=5 && x<=12)
+                                    if (fontdata[16*('-')+((y0%30)-8)]&(128>>(x-5)))
                                         indx=255;
                             }
 
                             else
                             {
-                                if (x>=13 && x<=20)
-                                    if (fontdata[16*('+')+((y0%30)-8)]&(128>>(x-13)))
+                                if (x>=5 && x<=12)
+                                    if (fontdata[16*('+')+((y0%30)-8)]&(128>>(x-5)))
+                                        indx=255;
+                            }
+
+                            if (x>=13 && x<=20)	 
+                                if (fontdata[16*(hundreds+'0')+((y0%30)-8)]&(128>>(x-13)))
+                                    indx=255; 
+                        }
+
+                        if (tens>0 || hundreds>0)
+                        {
+                            if (hundreds==0)
+                            {
+                                if (region.level[indx]<0)
+                                {
+                                    if (x>=13 && x<=20)
+                                        if (fontdata[16*('-')+((y0%30)-8)]&(128>>(x-13)))
+                                            indx=255;
+                                }
+
+                                else
+                                {
+                                    if (x>=13 && x<=20)
+                                        if (fontdata[16*('+')+((y0%30)-8)]&(128>>(x-13)))
+                                            indx=255;
+                                }
+                            }
+
+                            if (x>=21 && x<=28)	 
+                                if (fontdata[16*(tens+'0')+((y0%30)-8)]&(128>>(x-21)))
+                                    indx=255;
+                        }
+
+                        if (hundreds==0 && tens==0)
+                        {
+                            if (region.level[indx]<0)
+                            {
+                                if (x>=21 && x<=28)
+                                    if (fontdata[16*('-')+((y0%30)-8)]&(128>>(x-21)))
+                                        indx=255;
+                            }
+
+                            else
+                            {
+                                if (x>=21 && x<=28)
+                                    if (fontdata[16*('+')+((y0%30)-8)]&(128>>(x-21)))
                                         indx=255;
                             }
                         }
 
-                        if (x>=21 && x<=28)	 
-                            if (fontdata[16*(tens+'0')+((y0%30)-8)]&(128>>(x-21)))
+                        if (x>=29 && x<=36)
+                            if (fontdata[16*(units+'0')+((y0%30)-8)]&(128>>(x-29)))
+                                indx=255;
+
+                        if (x>=37 && x<=44)
+                            if (fontdata[16*('d')+((y0%30)-8)]&(128>>(x-37)))
+                                indx=255;
+
+                        if (x>=45 && x<=52)
+                            if (fontdata[16*('B')+((y0%30)-8)]&(128>>(x-45)))
+                                indx=255;
+
+                        if (x>=53 && x<=60)
+                            if (fontdata[16*('m')+((y0%30)-8)]&(128>>(x-53)))
                                 indx=255;
                     }
 
-                    if (hundreds==0 && tens==0)
+                    if (indx>region.levels) {
+                        pixel=COLOR_BLACK;
+                    }
+                    else
                     {
-                        if (region.level[indx]<0)
-                        {
-                            if (x>=21 && x<=28)
-                                if (fontdata[16*('-')+((y0%30)-8)]&(128>>(x-21)))
-                                    indx=255;
-                        }
+                        red=region.color[indx][0];
+                        green=region.color[indx][1];
+                        blue=region.color[indx][2];
 
-                        else
-                        {
-                            if (x>=21 && x<=28)
-                                if (fontdata[16*('+')+((y0%30)-8)]&(128>>(x-21)))
-                                    indx=255;
-                        }
+                        pixel=RGB(red,green,blue);
                     }
 
-                    if (x>=29 && x<=36)
-                        if (fontdata[16*(units+'0')+((y0%30)-8)]&(128>>(x-29)))
-                            indx=255;
-
-                    if (x>=37 && x<=44)
-                        if (fontdata[16*('d')+((y0%30)-8)]&(128>>(x-37)))
-                            indx=255;
-
-                    if (x>=45 && x<=52)
-                        if (fontdata[16*('B')+((y0%30)-8)]&(128>>(x-45)))
-                            indx=255;
-
-                    if (x>=53 && x<=60)
-                        if (fontdata[16*('m')+((y0%30)-8)]&(128>>(x-53)))
-                            indx=255;
+                    iw.AppendPixel(pixel);
                 }
 
-                if (indx>region.levels) {
-                    pixel=COLOR_BLACK;
-                }
-                else
-                {
-                    red=region.color[indx][0];
-                    green=region.color[indx][1];
-                    blue=region.color[indx][2];
-
-                    pixel=RGB(red,green,blue);
-                }
-
-                ImageWriterAppendPixel(&iw, pixel);
+                iw.EmitLine();
             }
 
-            ImageWriterEmitLine(&iw);
-        }
+            iw.Finish();
 
-        ImageWriterFinish(&iw);
+        } catch (const std::exception& e) {
+            std::cerr << "Error writing " << ckfile << ": " << e.what() << std::endl;
+            return;
+        }
     }
 
     free(mapfile);
