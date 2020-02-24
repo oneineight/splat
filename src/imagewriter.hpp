@@ -35,6 +35,9 @@
 #include <iostream>
 #include <exception>
 
+// XXX HAVE_LIBPNG/HAVE_LIBJPG should be set by the CMakefiles
+#define HAVE_LIBPNG
+
 #ifndef _WIN32
 #define HAVE_LIBJPEG
 #endif
