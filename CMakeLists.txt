@@ -5,7 +5,8 @@ project(splat VERSION 2.0)
 # specify the C++ standard
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-
+set(CMAKE_CXX_FLAGS "-O3 -Wall -ffast-math")
+set(CMAKE_C_FLAGS "-O3 -Wall -ffast-math")	# strange - this line speeds up splat, not the line above...
 
 if(WIN32)
   set(SHAREDIR ".")
