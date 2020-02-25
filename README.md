@@ -48,6 +48,8 @@ As an example, a build on Ubuntu 18.04 LTS might look like this:
 sudo apt install git
 git clone https://github.com/hoche/splat.git
 sudo apt install libbz2-dev zlib1g-dev libjpeg-dev libpng-dev gnuplot
+cd splat/build
+cmake ..
 make
 ```
 
@@ -55,8 +57,7 @@ make
 
 * Build system
 
-  The build system has been converted to Gnu Make (gmake). There is no need to run "configure" any more.
-  The next release may see a CMake build system.
+The build system has been converted to CMake.
   
 * SDF file names
 
