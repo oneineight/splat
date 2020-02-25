@@ -6,6 +6,10 @@ add_executable(splat
     itwom3.0.c
     splat.cpp
     sysutil.cpp
-    zip.c)
+    zip.c
+    fontdata.h
+    miniz.h
+    workqueue.hpp
+    zip.h)
 target_link_libraries(splat bz2 ${PNG_LIBRARIES} ${JPEG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 install(TARGETS splat DESTINATION bin)
