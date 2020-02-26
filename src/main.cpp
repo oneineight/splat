@@ -683,7 +683,7 @@ int main(int argc, const char * argv[])
     // Now print the header:
     cout << "\n\t\t--==[ Welcome To " << SplatRun::splat_name << " v" << SplatRun::splat_version << " ]==--\n\n";
     
-    double *elev = new double[sr.arraysize+10];
+    elev_t *elev = new elev_t[sr.arraysize+10];
     check_allocation(elev, "elev", sr);
     
     Path *path_p = new Path(sr.arraysize, sr.ppd);

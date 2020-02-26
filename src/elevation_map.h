@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include <stdio.h>
+#include "itwom3.0.h"
 
 class Path;
 class SplatRun;
@@ -70,7 +71,7 @@ public:
     
     void PlotLOSMap(const Site &source, double altitude);
     
-    void PlotLRMap(const Site &source, double altitude, const std::string &plo_filename, double elev[], const PatFile &pat, const Lrp &lrp);
+    void PlotLRMap(const Site &source, double altitude, const std::string &plo_filename, elev_t elev[], const PatFile &pat, const Lrp &lrp);
     
     int PutSignal(double lat, double lon, unsigned char signal);
     
@@ -79,7 +80,7 @@ public:
     ~ElevationMap();
     
 private:
-    void PlotLRPath(const Site &source, const Site &destination, unsigned char mask_value, FILE *fd, double elev[], const PatFile &pat, const Lrp &lrp);
+    void PlotLRPath(const Site &source, const Site &destination, unsigned char mask_value, FILE *fd, elev_t elev[], const PatFile &pat, const Lrp &lrp);
 
     bool FindMask(double lat, double lon, int &x, int &y, int &indx) const;
 };

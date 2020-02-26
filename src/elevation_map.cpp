@@ -862,7 +862,7 @@ void ElevationMap::PlotLOSMap(const Site &source, double altitude)
     }
 }
 
-void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &plo_filename, double elev[], const PatFile &pat, const Lrp &lrp)
+void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &plo_filename, elev_t elev[], const PatFile &pat, const Lrp &lrp)
 {
     /* This function performs a 360 degree sweep around the
      transmitter site (source location), and plots the
@@ -1052,7 +1052,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         mask_value++;
 }
 
-void ElevationMap::PlotLRPath(const Site &source, const Site &destination, unsigned char mask_value, FILE *fd, double elev[], const PatFile &pat, const Lrp &lrp)
+void ElevationMap::PlotLRPath(const Site &source, const Site &destination, unsigned char mask_value, FILE *fd, elev_t elev[], const PatFile &pat, const Lrp &lrp)
 {
     /* This function plots the RF path loss between source and
      destination points based on the ITWOM propagation model,

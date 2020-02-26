@@ -34,7 +34,7 @@ public:
     dashes("---------------------------------------------------------------------------")
     {}
     
-    void PathReport(const Site &source, const Site &destination, const std::string &name, bool graph_it, double elev[], const PatFile &pat, const Lrp &lrp);
+    void PathReport(const Site &source, const Site &destination, const std::string &name, bool graph_it, elev_t elev[], const PatFile &pat, const Lrp &lrp);
     
     void SiteReport(const Site &xmtr);
     

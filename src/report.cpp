@@ -29,7 +29,7 @@
 
 using namespace std;
 
-void Report::PathReport(const Site &source, const Site &destination, const string &name, bool graph_it, double elev[], const PatFile &pat, const Lrp &lrp)
+void Report::PathReport(const Site &source, const Site &destination, const string &name, bool graph_it, elev_t elev[], const PatFile &pat, const Lrp &lrp)
 {
     /* This function writes a SPLAT! Path Report (name.txt) to
      the filesystem.  If (graph_it == 1), then gnuplot is invoked
