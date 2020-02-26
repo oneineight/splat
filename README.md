@@ -12,11 +12,9 @@ card in the hopes of even more speed improvements. In preparation for this, itwo
 made fully C99-compliant, as all the current implementations of OpenCL drivers require
 that. (Later versions of OpenCL allow C++, but none of the common GPU drivers support that).
 
-## Getting Started
+## Building
 
-Build instructions are in the file README.
-
-For this version, you must have either gcc or clang installed, and it must be a version that supports at least C++11 .
+For this version, you must have CMake and either gcc or clang installed, and it must be a version that supports at least C++11 .
 
 You also need several utility libraries:
 * libbzip2
@@ -29,29 +27,77 @@ and gnuplot for generating graphs.
 
 You can generally get these via system packages. For instance:
 
-Centos 7:
+### Centos 7:
 
-`yum install bzip2-devel zlib-devel libpng-devel libjpeg-turbo-devel gnuplot`
+`yum install cmake bzip2-devel zlib-devel libpng-devel libjpeg-turbo-devel gnuplot`
 
-Debian (Buster) and Ubuntu (18.04 LTS):
+### Debian (Buster) and Ubuntu (18.04 LTS):
 
-`apt-get install libbz2-dev zlib1g-dev libjpeg-dev libpng-dev gnuplot`
+`apt-get install cmake libbz2-dev zlib1g-dev libjpeg-dev libpng-dev gnuplot`
 
-OSX (High Sierra):
+### OSX (High Sierra):
 
-`brew install jpeg libpng gnuplot`
+#### Homebrew
 
-## Example Build on Ubuntu 18.04 LTS
+`brew install cmake jpeg libpng gnuplot`
+
+#### MacPorts
+`port install cmake jpeg libpng gnuplot`
+
+### Example Build on Ubuntu 18.04 LTS
 As an example, a build on Ubuntu 18.04 LTS might look like this:
 
 ```
-sudo apt install git
+sudo apt install git cmake
 git clone https://github.com/hoche/splat.git
 sudo apt install libbz2-dev zlib1g-dev libjpeg-dev libpng-dev gnuplot
 cd splat/build
 cmake ..
 make
 ```
+
+### Microsoft Windows
+See [README_VisualStudio.md](README_VisualStudio.md)
+
+## Installation
+After building, run
+
+    make install
+
+## Running
+
+Topography data must be downloaded and SPLAT Data Files must
+be generated using the included `srtm2sdf`, `postdownload`, or `usgs2sdf`
+utilities before using SPLAT!  Instructions for doing so are included
+in the documentation.
+
+It is a good practice to create a working directory for SPLAT! use
+under your home directory:
+
+    mkdir $HOME/splat-work
+
+Then:
+
+    cd $HOME/splat-work
+
+before invoking SPLAT!
+
+In this manner, all associated SPLAT! working files can be kept in a
+common directory.
+
+It is important to realize that when analyzing regional coverage
+areas of transmitters, repeaters, or cell sites, SPLAT! Data Files
+need to be available for the entire region surrounding the site(s)
+being analyzed.  SPLAT! Data Files can be placed under your SPLAT!
+working directory, or under a separate directory specified in your
+`$HOME/.splat_path` file so SPLAT! can easily find them.
+
+Please read the README file under the utils directory for information
+on the utilities included with SPLAT!.
+
+Please read the documentation under `docs` directory,
+or consult the program's man page for more information and examples
+of SPLAT! use.
 
 ## Changes
 
@@ -123,3 +169,7 @@ The build system has been converted to CMake.
 * More code cleanup.
 * Split this into multiple files and c++ify things.
 * Reformat tabs to four spaces.
+
+## Acknowledgements
+This project and code is based on the original SPLAT! version 1.4.2 by John A. Magliacane, KD2BD:
+http://www.qsl.net/kd2bd/splat.html
