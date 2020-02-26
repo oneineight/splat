@@ -37,8 +37,8 @@
 #include "zip.h"
 
 #include "fontdata.h"
-#include "workqueue.hpp"
-#include "imagewriter.hpp"
+#include "workqueue.h"
+#include "imagewriter.h"
 #include "sysutil.h"
 
 #ifdef _WIN32
