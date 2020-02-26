@@ -9,8 +9,17 @@
    The Community Edition will work fine.
 
 ## Compiling SPLAT! for Windows, the TL;DR version:
-  Checkout files from git. Open the sln. Choose "Build->Solution". Run Splat.exe with
-  the same options you'd use with unix.
+  1) Checkout files from git. 
+  2) Generate the Visual Studio Project using CMake
+  3) Open the sln. Choose "Build->Solution". 
+  4) Run Splat.exe with the same options you'd use with unix.
+  
+## Compiling SPLAT! for Windows, the 2017 version:
+Visual Studio 2017 and above have support for CMake built in:
+1) Checkout files from git. 
+2) Choose File -> Open Folder and open the root `splat` directory
+3) Right-click on the root level `CMakeLists.txt` and choose build
+4) Run Splat.exe with the same options you'd use with unix.
 
 ## Details
 * This creates a Win32 Console Application. No fancy windows here!
