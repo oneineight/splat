@@ -31,6 +31,8 @@ private:
     Path &path;
     
     const SplatRun &sr;
+    double avgpathlen;
+    int totalpaths;
 
     
 public:

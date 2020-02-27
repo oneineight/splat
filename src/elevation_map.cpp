@@ -35,7 +35,8 @@ ElevationMap::ElevationMap(Path &path,
                            const SplatRun &sr)
 :dem(sr.maxpages, Dem(sr.ippd)), path(path), sr(sr),
 min_north(90), max_north(-90), min_west(360), 
-max_west(-1), max_elevation(-32768), min_elevation(32768)
+max_west(-1), max_elevation(-32768), min_elevation(32768),
+avgpathlen(0.0), totalpaths(0)
 {
     for (int i=0; i < sr.maxpages; i++)
     {
@@ -898,39 +899,32 @@ void ElevationMap::PlotLOSMap(const Site &source, double altitude)
     }
 }
 
+/* Performs a 360 degree sweep around the transmitter site (source location),
+ * and plots the ITM/ITWOM attenuation on the SPLAT! generated topographic map
+ * based on a receiver located at the specified altitude (in feet AGL).  Results
+ * are stored in memory, and written out in the form of a topographic map when
+ * the WriteImageLR() or WriteImageSS() functions are later invoked.
+ */
 void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &plo_filename, elev_t elev[], const PatFile &pat, const Lrp &lrp)
 {
-    /* This function performs a 360 degree sweep around the
-     transmitter site (source location), and plots the
-     Irregular Terrain Model attenuation on the SPLAT!
-     generated topographic map based on a receiver located
-     at the specified altitude (in feet AGL).  Results
-     are stored in memory, and written out in the form
-     of a topographic map when the WritePPMLR() or
-     WritePPMSS() functions are later invoked. */
-    
     int y, z, count;
     Site edge;
     double lat, lon, minwest, maxnorth, th;
-    unsigned char x, symbol[4];
+    unsigned char x;
     static unsigned char mask_value=1;
     FILE *fd=NULL;
-    
+    char symbol[4] = {'.', 'o', 'O', 'o' };
+
     minwest=sr.dpp+(double)min_west;
     maxnorth=(double)max_north-sr.dpp;
-    
-    symbol[0]='.';
-    symbol[1]='o';
-    symbol[2]='O';
-    symbol[3]='o';
-    
+
     count=0;
-    
+
     if (sr.olditm)
-        fprintf(stdout,"\nComputing ITM ");
-    else
         fprintf(stdout,"\nComputing ITWOM ");
-    
+    else
+        fprintf(stdout,"\nComputing ITM ");
+
     if (lrp.erp==0.0)
         fprintf(stdout,"path loss");
     else
@@ -946,55 +940,71 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
     if (sr.clutter>0.0)
         fprintf(stdout,"\nand %.2f %s of ground sr.clutter",sr.metric?sr.clutter*METERS_PER_FOOT:sr.clutter,sr.metric?"meters":"feet");
     
-    fprintf(stdout,"...\n\n 0%c to  25%c ",37,37);
-    fflush(stdout);
-    
     if (plo_filename[0]!=0)
         fd=fopen(plo_filename.c_str(),"wb");
     
     if (fd!=NULL)
     {
         /* Write header information to output file */
-        
+
         fprintf(fd,"%d, %d\t; max_west, min_west\n%d, %d\t; max_north, min_north\n",max_west, min_west, max_north, min_north);
     }
-    
+
     /* th=pixels/degree divided by 64 loops per
-     progress indicator symbol (.oOo) printed. */
-    
+       progress indicator symbol (.oOo) printed. */
+
     th=sr.ppd/64.0;
-    
+
     z=(int)(th*Utilities::ReduceAngle(max_west-min_west));
-    
+
+    fprintf(stdout, "\n\n");
+
+    WorkQueue wq;
+
+    if (sr.verbose) {
+        if (sr.multithread) {
+            fprintf(stdout,"Using %d threads...\n\n", wq.maxWorkers());
+        }
+        fprintf(stdout," 0%c to  25%c ",37,37);
+        fflush(stdout);
+    }
+
     for (lon=minwest, x=0, y=0; (Utilities::LonDiff(lon,(double)max_west)<=0.0); y++, lon=minwest+(sr.dpp*(double)y))
     {
         if (lon>=360.0)
             lon-=360.0;
-        
+
         edge.lat=max_north;
         edge.lon=lon;
         edge.alt=altitude;
-        
-        PlotLRPath(source,edge,mask_value,fd,elev, pat, lrp);
-        count++;
-        
-        if (count==z)
-        {
-            fprintf(stdout,"%c",symbol[x]);
-            fflush(stdout);
-            count=0;
-            
-            if (x==3)
-                x=0;
-            else
-                x++;
+
+        if (sr.multithread) {
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, elev, pat, lrp));
+        } else {
+            PlotLRPath(source, edge, mask_value,fd,elev, pat, lrp);
+        }
+
+        if (sr.verbose) {
+            if (++count==z)
+            {
+                fprintf(stdout,"%c",symbol[x]);
+                fflush(stdout);
+                count=0;
+
+                if (x==3)
+                    x=0;
+                else
+                    x++;
+            }
         }
     }
-    
-    count=0;
-    fprintf(stdout,"\n25%c to  50%c ",37,37);
-    fflush(stdout);
-    
+
+    if (sr.verbose) {
+        count=0;
+        fprintf(stdout,"\n25%c to  50%c ",37,37);
+        fflush(stdout);
+    }
+
     z=(int)(th*(double)(max_north-min_north));
     
     for (lat=maxnorth, x=0, y=0; lat>=(double)min_north; y++, lat=maxnorth-(sr.dpp*(double)y))
@@ -1002,58 +1012,72 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.lat=lat;
         edge.lon=min_west;
         edge.alt=altitude;
-        
-        PlotLRPath(source,edge,mask_value,fd,elev, pat, lrp);
-        count++;
-        
-        if (count==z)
-        {
-            fprintf(stdout,"%c",symbol[x]);
-            fflush(stdout);
-            count=0;
-            
-            if (x==3)
-                x=0;
-            else
-                x++;
+
+        if (sr.multithread) {
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, elev, pat, lrp));
+        } else {
+            PlotLRPath(source,edge,mask_value,fd, elev, pat, lrp);
+        }
+
+        if (sr.verbose) {
+            if (++count==z)
+            {
+                fprintf(stdout,"%c",symbol[x]);
+                fflush(stdout);
+                count=0;
+
+                if (x==3)
+                    x=0;
+                else
+                    x++;
+            }
         }
     }
-    
-    count=0;
-    fprintf(stdout,"\n50%c to  75%c ",37,37);
-    fflush(stdout);
-    
+
+    if (sr.verbose) {
+        count=0;
+        fprintf(stdout,"\n50%c to  75%c ",37,37);
+        fflush(stdout);
+    }
+
     z=(int)(th*Utilities::ReduceAngle(max_west-min_west));
-    
+
     for (lon=minwest, x=0, y=0; (Utilities::LonDiff(lon,(double)max_west)<=0.0); y++, lon=minwest+(sr.dpp*(double)y))
     {
         if (lon>=360.0)
             lon-=360.0;
-        
+
         edge.lat=min_north;
         edge.lon=lon;
         edge.alt=altitude;
-        
-        PlotLRPath(source,edge,mask_value,fd,elev, pat, lrp);
-        count++;
-        
-        if (count==z)
-        {
-            fprintf(stdout,"%c",symbol[x]);
-            fflush(stdout);
-            count=0;
-            
-            if (x==3)
-                x=0;
-            else
-                x++;
+
+        if (sr.multithread) {
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, elev, pat, lrp));
+        } else {
+            PlotLRPath(source,edge,mask_value,fd, elev, pat, lrp);
+        }
+
+        if (sr.verbose) {
+            if (++count==z)
+            {
+                fprintf(stdout,"%c",symbol[x]);
+                fflush(stdout);
+                count=0;
+
+                if (x==3)
+                    x=0;
+                else
+                    x++;
+            }
         }
     }
-    
-    count=0;
-    fprintf(stdout,"\n75%c to 100%c ",37,37);
-    fflush(stdout);
-    
+
+    if (sr.verbose) {
+        count=0;
+        fprintf(stdout,"\n75%c to 100%c ",37,37);
+        fflush(stdout);
+    }
+
     z=(int)(th*(double)(max_north-min_north));
     
     for (lat=(double)min_north, x=0, y=0; lat<(double)max_north; y++, lat=(double)min_north+(sr.dpp*(double)y))
@@ -1061,29 +1085,39 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.lat=lat;
         edge.lon=max_west;
         edge.alt=altitude;
-        
-        PlotLRPath(source,edge,mask_value,fd,elev, pat, lrp);
-        count++;
-        
-        if (count==z)
-        {
-            fprintf(stdout,"%c",symbol[x]);
-            fflush(stdout);
-            count=0;
-            
-            if (x==3)
-                x=0;
-            else
-                x++;
+
+        if (sr.multithread) {
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, elev, pat, lrp));
+        } else {
+            PlotLRPath(source,edge,mask_value,fd, elev, pat, lrp);
+        }
+
+        if (sr.verbose) {
+            if (++count==z)
+            {
+                fprintf(stdout,"%c",symbol[x]);
+                fflush(stdout);
+                count=0;
+
+                if (x==3)
+                    x=0;
+                else
+                    x++;
+            }
         }
     }
-    
+
+    wq.waitForCompletion();
+
     if (fd!=NULL)
         fclose(fd);
-    
-    fprintf(stdout,"\nDone!\n");
-    fflush(stdout);
-    
+
+    if (sr.verbose) {
+        fprintf(stdout,"\nDone!\n");
+        fprintf(stdout,"\nThere were %d paths with an average length of %d elements.\n", totalpaths, (int)avgpathlen);
+        fflush(stdout);
+    }
+
     if (mask_value<30)
         mask_value++;
 }
