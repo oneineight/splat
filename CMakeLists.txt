@@ -6,7 +6,7 @@ project(splat VERSION 2.0)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS "-O3 -Wall -ffast-math")
-set(CMAKE_C_FLAGS "-O3 -Wall -ffast-math")	# strange - this line speeds up splat, not the line above...
+set(CMAKE_C_FLAGS "-O3 -Wall -ffast-math")	# required for optimization of itwom3.c until it is ported to C++
 
 if(WIN32)
   set(SHAREDIR ".")
