@@ -92,6 +92,8 @@ public:
     bool metric;
     bool dbm;
     bool smooth_contours;
+    bool verbose;
+    bool multithread;
     
 };
 

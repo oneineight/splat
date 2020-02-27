@@ -27,6 +27,7 @@
 #include "sdf.h"
 #include "elevation_map.h"
 #include "itwom3.0.h"
+#include "workqueue.h"
 
 using namespace std;
 
@@ -688,77 +689,89 @@ void ElevationMap::PlotPath(const Site &source, const Site &destination, char ma
     }
 }
 
+/* Performs a 360 degree sweep around the transmitter site (source location), and
+ * plots the line-of-sight coverage of the transmitter on the SPLAT! generated
+ * topographic map based on a receiver located at the specified altitude (in feet
+ * AGL). Results are stored in memory, and written out in the form of a topographic
+ * map when the WriteImage() function is later invoked.
+ */
 void ElevationMap::PlotLOSMap(const Site &source, double altitude)
 {
-    /* This function performs a 360 degree sweep around the
-     transmitter site (source location), and plots the
-     line-of-sight coverage of the transmitter on the SPLAT!
-     generated topographic map based on a receiver located
-     at the specified altitude (in feet AGL).  Results
-     are stored in memory, and written out in the form
-     of a topographic map when the WritePPM() function
-     is later invoked. */
-    
     int y, z, count;
     Site edge;
-    unsigned char symbol[4], x;
+    unsigned char x;
     double lat, lon, minwest, maxnorth, th;
     static unsigned char mask_value=1;
-    
-    symbol[0]='.';
-    symbol[1]='o';
-    symbol[2]='O';
-    symbol[3]='o';
-    
+    char symbol[4] = {'.', 'o', 'O', 'o' };
+
+    minwest=sr.dpp+(double)min_west;
+    maxnorth=(double)max_north-sr.dpp;
+
     count=0;
     
     fprintf(stdout,"\nComputing line-of-sight coverage of \"%s\" with an RX antenna\nat %.2f %s AGL",source.name.c_str(),sr.metric?altitude*METERS_PER_FOOT:altitude,sr.metric?"meters":"feet");
     
     if (sr.clutter>0.0)
-        fprintf(stdout," and %.2f %s of ground sr.clutter",sr.metric?sr.clutter*METERS_PER_FOOT:sr.clutter,sr.metric?"meters":"feet");
+        fprintf(stdout," and %.2f %s of ground clutter",sr.metric?sr.clutter*METERS_PER_FOOT:sr.clutter,sr.metric?"meters":"feet");
     
     fprintf(stdout,"...\n\n 0%c to  25%c ",37,37);
     fflush(stdout);
     
     /* th=pixels/degree divided by 64 loops per
-     progress indicator symbol (.oOo) printed. */
-    
+       progress indicator symbol (.oOo) printed. */
+
     th=sr.ppd/64.0;
-    
+
     z=(int)(th*Utilities::ReduceAngle(max_west-min_west));
-    
-    minwest=sr.dpp+(double)min_west;
-    maxnorth=(double)max_north-sr.dpp;
-    
+
+    fprintf(stdout, "\n\n");
+
+    WorkQueue wq;
+
+    if (sr.verbose) {
+        if (sr.multithread) {
+            fprintf(stdout,"Using %d threads...\n\n", wq.maxWorkers());
+        }
+        fprintf(stdout," 0%c to  25%c ",37,37);
+        fflush(stdout);
+    }
+
     for (lon=minwest, x=0, y=0; (Utilities::LonDiff(lon,(double)max_west)<=0.0); y++, lon=minwest+(sr.dpp*(double)y))
     {
         if (lon>=360.0)
             lon-=360.0;
-        
+
         edge.lat=max_north;
         edge.lon=lon;
         edge.alt=altitude;
-        
-        PlotPath(source,edge,mask_value);
-        count++;
-        
-        if (count==z)
-        {
-            fprintf(stdout,"%c",symbol[x]);
-            fflush(stdout);
-            count=0;
-            
-            if (x==3)
-                x=0;
-            else
-                x++;
+
+        if (sr.multithread) {
+            wq.submit(std::bind(&ElevationMap::PlotPath, this, source, edge, mask_value));
+        } else {
+            PlotPath(source,edge,mask_value);
+        }
+
+        if (sr.verbose) {
+            if (++count==z)
+            {
+                fprintf(stdout,"%c",symbol[x]);
+                fflush(stdout);
+                count=0;
+
+                if (x==3)
+                    x=0;
+                else
+                    x++;
+            }
         }
     }
-    
-    count=0;
-    fprintf(stdout,"\n25%c to  50%c ",37,37);
-    fflush(stdout);
-    
+
+    if (sr.verbose) {
+        count=0;
+        fprintf(stdout,"\n25%c to  50%c ",37,37);
+        fflush(stdout);
+    }
+
     z=(int)(th*(double)(max_north-min_north));
     
     for (lat=maxnorth, x=0, y=0; lat>=(double)min_north; y++, lat=maxnorth-(sr.dpp*(double)y))
@@ -766,58 +779,72 @@ void ElevationMap::PlotLOSMap(const Site &source, double altitude)
         edge.lat=lat;
         edge.lon=min_west;
         edge.alt=altitude;
-        
-        PlotPath(source,edge,mask_value);
-        count++;
-        
-        if (count==z)
-        {
-            fprintf(stdout,"%c",symbol[x]);
-            fflush(stdout);
-            count=0;
-            
-            if (x==3)
-                x=0;
-            else
-                x++;
+
+        if (sr.multithread) {
+            wq.submit(std::bind(&ElevationMap::PlotPath, this, source, edge, mask_value));
+        } else {
+            PlotPath(source,edge,mask_value);
+        }
+
+        if (sr.verbose) {
+            if (++count==z)
+            {
+                fprintf(stdout,"%c",symbol[x]);
+                fflush(stdout);
+                count=0;
+
+                if (x==3)
+                    x=0;
+                else
+                    x++;
+            }
         }
     }
-    
-    count=0;
-    fprintf(stdout,"\n50%c to  75%c ",37,37);
-    fflush(stdout);
-    
+
+    if (sr.verbose) {
+        count=0;
+        fprintf(stdout,"\n50%c to  75%c ",37,37);
+        fflush(stdout);
+    }
+
     z=(int)(th*Utilities::ReduceAngle(max_west-min_west));
-    
+
     for (lon=minwest, x=0, y=0; (Utilities::LonDiff(lon,(double)max_west)<=0.0); y++, lon=minwest+(sr.dpp*(double)y))
     {
         if (lon>=360.0)
             lon-=360.0;
-        
+
         edge.lat=min_north;
         edge.lon=lon;
         edge.alt=altitude;
-        
-        PlotPath(source,edge,mask_value);
-        count++;
-        
-        if (count==z)
-        {
-            fprintf(stdout,"%c",symbol[x]);
-            fflush(stdout);
-            count=0;
-            
-            if (x==3)
-                x=0;
-            else
-                x++;
+
+        if (sr.multithread) {
+            wq.submit(std::bind(&ElevationMap::PlotPath, this, source, edge, mask_value));
+        } else {
+            PlotPath(source,edge,mask_value);
+        }
+
+        if (sr.verbose) {
+            if (++count==z)
+            {
+                fprintf(stdout,"%c",symbol[x]);
+                fflush(stdout);
+                count=0;
+
+                if (x==3)
+                    x=0;
+                else
+                    x++;
+            }
         }
     }
-    
-    count=0;
-    fprintf(stdout,"\n75%c to 100%c ",37,37);
-    fflush(stdout);
-    
+
+    if (sr.verbose) {
+        count=0;
+        fprintf(stdout,"\n75%c to 100%c ",37,37);
+        fflush(stdout);
+    }
+
     z=(int)(th*(double)(max_north-min_north));
     
     for (lat=(double)min_north, x=0, y=0; lat<(double)max_north; y++, lat=(double)min_north+(sr.dpp*(double)y))
@@ -825,38 +852,47 @@ void ElevationMap::PlotLOSMap(const Site &source, double altitude)
         edge.lat=lat;
         edge.lon=max_west;
         edge.alt=altitude;
-        
-        PlotPath(source,edge,mask_value);
-        count++;
-        
-        if (count==z)
-        {
-            fprintf(stdout,"%c",symbol[x]);
-            fflush(stdout);
-            count=0;
-            
-            if (x==3)
-                x=0;
-            else
-                x++;
+
+        if (sr.multithread) {
+            wq.submit(std::bind(&ElevationMap::PlotPath, this, source, edge, mask_value));
+        } else {
+            PlotPath(source,edge,mask_value);
+        }
+
+        if (sr.verbose) {
+            if (++count==z)
+            {
+                fprintf(stdout,"%c",symbol[x]);
+                fflush(stdout);
+                count=0;
+
+                if (x==3)
+                    x=0;
+                else
+                    x++;
+            }
         }
     }
-    
-    fprintf(stdout,"\nDone!\n");
-    fflush(stdout);
-    
+
+    wq.waitForCompletion();
+
+    if (sr.verbose) {
+        fprintf(stdout,"\nDone!\n");
+        fflush(stdout);
+    }
+
     /* Assign next mask value */
-    
+
     switch (mask_value)
     {
         case 1:
             mask_value=8;
             break;
-            
+
         case 8:
             mask_value=16;
             break;
-            
+
         case 16:
             mask_value=32;
     }

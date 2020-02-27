@@ -22,6 +22,7 @@ add_executable(splat
     site.cpp
     splat_run.cpp
     udt.cpp
-    utilities.cpp)
+    utilities.cpp
+    workqueue.cpp)
 target_link_libraries(splat bz2 ${PNG_LIBRARIES} ${JPEG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 install(TARGETS splat DESTINATION bin)
