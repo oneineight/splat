@@ -1084,7 +1084,7 @@ int main(int argc, const char * argv[])
                 
                 if (flag)
                 {
-                    em_p->PlotLRMap(tx_site[x],sr.altitudeLR,ano_filename,elev,pat,lrp);
+                    em_p->PlotLRMap(tx_site[x],sr.altitudeLR,ano_filename,pat,lrp);
                 }
             }
             

@@ -31,6 +31,16 @@
 
 using namespace std;
 
+#define MAX_LINE_LEN 128
+#define NO_ANTENNA_DATA (-1.0)
+
+/* avg must be a float or double or you get rounding down because of truncation
+ * ignores values if n == 0 to avoid a divide-by-zero error
+ */
+#define UPDATE_RUNNING_AVG(avg, latest, n) do { \
+    (n) && ((avg) = (avg) + ((float)((latest) - (avg)))/(float)(n)); \
+} while (0)
+
 ElevationMap::ElevationMap(Path &path,
                            const SplatRun &sr)
 :dem(sr.maxpages, Dem(sr.ippd)), path(path), sr(sr),
@@ -905,7 +915,7 @@ void ElevationMap::PlotLOSMap(const Site &source, double altitude)
  * are stored in memory, and written out in the form of a topographic map when
  * the WriteImageLR() or WriteImageSS() functions are later invoked.
  */
-void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &plo_filename, elev_t elev[], const PatFile &pat, const Lrp &lrp)
+void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &plo_filename, const PatFile &pat, const Lrp &lrp)
 {
     int y, z, count;
     Site edge;
@@ -979,9 +989,9 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.alt=altitude;
 
         if (sr.multithread) {
-            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, elev, pat, lrp));
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, pat, lrp));
         } else {
-            PlotLRPath(source, edge, mask_value,fd,elev, pat, lrp);
+            PlotLRPath(source, edge, mask_value,fd, pat, lrp);
         }
 
         if (sr.verbose) {
@@ -1014,9 +1024,9 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.alt=altitude;
 
         if (sr.multithread) {
-            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, elev, pat, lrp));
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, pat, lrp));
         } else {
-            PlotLRPath(source,edge,mask_value,fd, elev, pat, lrp);
+            PlotLRPath(source,edge,mask_value,fd, pat, lrp);
         }
 
         if (sr.verbose) {
@@ -1052,9 +1062,9 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.alt=altitude;
 
         if (sr.multithread) {
-            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, elev, pat, lrp));
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, pat, lrp));
         } else {
-            PlotLRPath(source,edge,mask_value,fd, elev, pat, lrp);
+            PlotLRPath(source,edge,mask_value,fd, pat, lrp);
         }
 
         if (sr.verbose) {
@@ -1087,9 +1097,9 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.alt=altitude;
 
         if (sr.multithread) {
-            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, elev, pat, lrp));
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, pat, lrp));
         } else {
-            PlotLRPath(source,edge,mask_value,fd, elev, pat, lrp);
+            PlotLRPath(source,edge,mask_value,fd, pat, lrp);
         }
 
         if (sr.verbose) {
@@ -1122,254 +1132,284 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         mask_value++;
 }
 
-void ElevationMap::PlotLRPath(const Site &source, const Site &destination, unsigned char mask_value, FILE *fd, elev_t elev[], const PatFile &pat, const Lrp &lrp)
+/* Plots the RF path loss between source and destination points based on the
+ * ITM/ITWOM propagation model, taking into account antenna pattern data if
+ * available.
+ */
+void ElevationMap::PlotLRPath(const Site &source, const Site &destination, unsigned char mask_value, FILE *fd, const PatFile &pat, const Lrp &lrp)
 {
-    /* This function plots the RF path loss between source and
-     destination points based on the ITWOM propagation model,
-     taking into account antenna pattern data, if available. */
-    
-    int	x, y, ifs, ofs, errnum;
-    char	block=0, strmode[100];
-    double	loss, azimuth, pattern=0.0, xmtr_alt,
-    dest_alt, xmtr_alt2, dest_alt2, cos_rcvr_angle,
-    cos_test_angle=0.0, test_alt, elevation=0.0,
-    distance=0.0, four_thirds_earth, rxp, dBm,
-    field_strength=0.0;
+    int    x, y, ifs, ofs, errnum;
+    char    block=0, strmode[100];
+    double    loss, azimuth, pattern=0.0, xmtr_alt,
+            dest_alt, xmtr_alt2, dest_alt2, cos_rcvr_angle,
+            cos_test_angle=0.0, test_alt, elevation=0.0,
+            distance=0.0, four_thirds_earth, rxp, dBm,
+            field_strength=0.0;
+
     Site temp;
-    
+    char textout[MAX_LINE_LEN];
+    size_t textlen = 0;
+
+    Path path(sr.arraysize, sr.ppd);
     path.ReadPath(source,destination, *this);
-    
-    four_thirds_earth=FOUR_THIRDS*sr.earthradius;
-    
-    /* Copy elevations plus sr.clutter along path into the elev[] array. */
-    
+
+    /* XXX debug */
+    totalpaths++;
+    UPDATE_RUNNING_AVG(avgpathlen, path.length, totalpaths);
+
+    /* XXX why +10? should it just be +2? Better yet, path.length+2? */
+    elev_t elev[sr.arraysize + 10];
+
+    four_thirds_earth=FOUR_THIRDS*EARTHRADIUS;
+
+    /* Copy elevations plus clutter along path into the elev[] array. */
+
     for (x=1; x<path.length-1; x++)
-        elev[x+2]=(path.elevation[x]==0.0?path.elevation[x]*METERS_PER_FOOT:(sr.clutter+path.elevation[x])*METERS_PER_FOOT);
-    
-    /* Copy ending points without sr.clutter */
-    
-    elev[2]=path.elevation[0]*METERS_PER_FOOT;
-    elev[path.length+1]=path.elevation[path.length-1]*METERS_PER_FOOT;
-    
+        elev[x+2]=(path.elevation[x]==0.0?(elev_t)(path.elevation[x]*METERS_PER_FOOT):(elev_t)((sr.clutter+path.elevation[x])*METERS_PER_FOOT));
+
+    /* Copy ending points without clutter */
+
+    elev[2]=(elev_t)(path.elevation[0]*METERS_PER_FOOT);
+    elev[path.length+1]=(elev_t)(path.elevation[path.length-1]*METERS_PER_FOOT);
+
     /* Since the only energy the propagation model considers
-     reaching the destination is based on what is scattered
-     or deflected from the first obstruction along the path,
-     we first need to find the location and elevation angle
-     of that first obstruction (if it exists).  This is done
-     using a 4/3rds Earth radius to match the radius used by
-     the irregular terrain propagation model.  This information
-     is required for properly integrating the antenna's elevation
-     pattern into the calculation for overall path loss. */
-    
+       reaching the destination is based on what is scattered
+       or deflected from the first obstruction along the path,
+       we first need to find the location and elevation angle
+       of that first obstruction (if it exists).  This is done
+       using a 4/3rds Earth radius to match the radius used by
+       the irregular terrain propagation model.  This information
+       is required for properly integrating the antenna's elevation
+       pattern into the calculation for overall path loss. */
+
     for (y=2; (y<(path.length-1) && path.distance[y]<=sr.max_range); y++)
     {
         /* Process this point only if it
-         has not already been processed. */
-        
+           has not already been processed. */
+
         if ((GetMask(path.lat[y],path.lon[y])&248)!=(mask_value<<3))
         {
             distance=5280.0*path.distance[y];
+
+            /***
+              if (source.amsl_flag)
+              xmtr_alt=four_thirds_earth+source.alt;
+              else
+             ***/
             xmtr_alt=four_thirds_earth+source.alt+path.elevation[0];
-            dest_alt=four_thirds_earth+destination.alt+path.elevation[y];
+
+            /***/
+            if (destination.amsl_flag)
+                dest_alt=four_thirds_earth+destination.alt;
+            else
+                /***/
+                dest_alt=four_thirds_earth+destination.alt+path.elevation[y];
+
             dest_alt2=dest_alt*dest_alt;
             xmtr_alt2=xmtr_alt*xmtr_alt;
-            
+
             /* Calculate the cosine of the elevation of
-             the receiver as seen by the transmitter. */
-            
+               the receiver as seen by the transmitter. */
+
             cos_rcvr_angle=((xmtr_alt2)+(distance*distance)-(dest_alt2))/(2.0*xmtr_alt*distance);
-            
+
             if (cos_rcvr_angle>1.0)
                 cos_rcvr_angle=1.0;
-            
+
             if (cos_rcvr_angle<-1.0)
                 cos_rcvr_angle=-1.0;
-            
+
             if (pat.got_elevation_pattern || fd!=NULL)
             {
                 /* Determine the elevation angle to the first obstruction
-                 along the path IF elevation pattern data is available
-                 or an output (.ano) file has been designated. */
-                
+                   along the path IF elevation pattern data is available
+                   or an output (.ano) file has been designated. */
+
                 for (x=2, block=0; (x<y && block==0); x++)
                 {
                     distance=5280.0*path.distance[x];
-                    
+
                     test_alt=four_thirds_earth+(path.elevation[x]==0.0?path.elevation[x]:path.elevation[x]+sr.clutter);
-                    
+
                     /* Calculate the cosine of the elevation
-                     angle of the terrain (test point)
-                     as seen by the transmitter. */
-                    
+                       angle of the terrain (test point)
+                       as seen by the transmitter. */
+
                     cos_test_angle=((xmtr_alt2)+(distance*distance)-(test_alt*test_alt))/(2.0*xmtr_alt*distance);
-                    
+
                     if (cos_test_angle>1.0)
                         cos_test_angle=1.0;
-                    
+
                     if (cos_test_angle<-1.0)
                         cos_test_angle=-1.0;
-                    
+
                     /* Compare these two angles to determine if
-                     an obstruction exists.  Since we're comparing
-                     the cosines of these angles rather than
-                     the angles themselves, the sense of the
-                     following "if" statement is reversed from
-                     what it would be if the angles themselves
-                     were compared. */
-                    
+                       an obstruction exists.  Since we're comparing
+                       the cosines of these angles rather than
+                       the angles themselves, the sense of the
+                       following "if" statement is reversed from
+                       what it would be if the angles themselves
+                       were compared. */
+
                     if (cos_rcvr_angle>=cos_test_angle)
                         block=1;
                 }
-                
+
                 if (block)
                     elevation=((acos(cos_test_angle))/DEG2RAD)-90.0;
                 else
                     elevation=((acos(cos_rcvr_angle))/DEG2RAD)-90.0;
             }
-            
+
             /* Determine attenuation for each point along
-             the path using ITWOM's point_to_point mode
-             starting at y=2 (number_of_points = 1), the
-             shortest distance terrain can play a role in
-             path loss. */
-            
-            elev[0]=y-1;  /* (number of points - 1) */
-            
+               the path using ITWOM's point_to_point mode
+               starting at y=2 (number_of_points = 1), the
+               shortest distance terrain can play a role in
+               path loss. */
+
+            elev[0]=(elev_t)(y-1);  /* (number of points - 1) */
+
             /* Distance between elevation samples */
-            
-            elev[1]=METERS_PER_MILE*(path.distance[y]-path.distance[y-1]);
-            
-            if (sr.olditm)
-                point_to_point_ITM(elev,source.alt*METERS_PER_FOOT,
-                                   destination.alt*METERS_PER_FOOT, lrp.eps_dielect,
-                                   lrp.sgm_conductivity, lrp.eno_ns_surfref, lrp.frq_mhz,
-                                   lrp.radio_climate, lrp.pol, lrp.conf, lrp.rel, loss,
-                                   strmode, errnum);
-            
-            else
+
+            elev[1]=(elev_t)(METERS_PER_MILE*(path.distance[y]-path.distance[y-1]));
+
+            if (!sr.olditm)
                 point_to_point(elev,source.alt*METERS_PER_FOOT,
                                destination.alt*METERS_PER_FOOT, lrp.eps_dielect,
                                lrp.sgm_conductivity, lrp.eno_ns_surfref, lrp.frq_mhz,
                                lrp.radio_climate, lrp.pol, lrp.conf, lrp.rel, loss,
                                strmode, errnum);
-            
+            else
+                point_to_point_ITM(elev,source.alt*METERS_PER_FOOT,
+                                   destination.alt*METERS_PER_FOOT, lrp.eps_dielect,
+                                   lrp.sgm_conductivity, lrp.eno_ns_surfref, lrp.frq_mhz,
+                                   lrp.radio_climate, lrp.pol, lrp.conf, lrp.rel, loss,
+                                   strmode, errnum);
+
             temp.lat=path.lat[y];
             temp.lon=path.lon[y];
-            
+
             azimuth=(source.Azimuth(temp));
-            
-            if (fd!=NULL)
-                fprintf(fd,"%.7f, %.7f, %.3f, %.3f, ",path.lat[y], path.lon[y], azimuth, elevation);
-            
+
+            if (fd!=NULL) {
+                textlen = snprintf(textout, MAX_LINE_LEN, "%.7f, %.7f, %.3f, %.3f, ",
+                                   path.lat[y], path.lon[y], azimuth, elevation);
+            }
+
             /* If ERP==0, write path loss to alphanumeric
-             output file.  Otherwise, write field strength
-             or received power level (below), as appropriate. */
-            
-            if (fd!=NULL && lrp.erp==0.0)
-                fprintf(fd,"%.2f",loss);
-            
+               output file.  Otherwise, write field strength
+               or received power level (below), as appropriate. */
+
+            if (fd!=NULL && lrp.erp==0.0) {
+                textlen += snprintf(textout + textlen, MAX_LINE_LEN - textlen, "%.2f",loss);
+            }
+
             /* Integrate the antenna's radiation
-             pattern into the overall path loss. */
-            
+               pattern into the overall path loss. */
+
             x=(int)rint(10.0*(10.0-elevation));
-            
+
             if (x>=0 && x<=1000)
             {
                 azimuth=rint(azimuth);
-                
+
                 pattern=(double)pat.antenna_pattern[(int)azimuth][x];
-                
-                if (pattern!=0.0)
-                {
+
+                if (pattern > 0.0) {
                     pattern=20.0*log10(pattern);
                     loss-=pattern;
+                } else if (pattern != NO_ANTENNA_DATA) {
+                    loss-=9999;
                 }
             }
-            
+
             if (lrp.erp!=0.0)
             {
                 if (sr.dbm)
                 {
                     /* dBm is based on EIRP (ERP + 2.14) */
-                    
+
                     rxp=lrp.erp/(pow(10.0,(loss-2.14)/10.0));
-                    
+
                     dBm=10.0*(log10(rxp*1000.0));
-                    
-                    if (fd!=NULL)
-                        fprintf(fd,"%.3f",dBm);
-                    
+
+                    if (fd!=NULL) {
+                        textlen += snprintf(textout + textlen, MAX_LINE_LEN - textlen, "%.3f",dBm);
+                    }
+
                     /* Scale roughly between 0 and 255 */
-                    
+
                     ifs=200+(int)rint(dBm);
-                    
+
                     if (ifs<0)
                         ifs=0;
-                    
+
                     if (ifs>255)
                         ifs=255;
-                    
+
                     ofs=GetSignal(path.lat[y],path.lon[y]);
-                    
+
                     if (ofs>ifs)
                         ifs=ofs;
-                    
+
+                    // writes to dem
                     PutSignal(path.lat[y],path.lon[y],(unsigned char)ifs);
                 }
-                
+
                 else
                 {
                     field_strength=(139.4+(20.0*log10(lrp.frq_mhz))-loss)+(10.0*log10(lrp.erp/1000.0));
-                    
+
                     ifs=100+(int)rint(field_strength);
-                    
+
                     if (ifs<0)
                         ifs=0;
-                    
+
                     if (ifs>255)
                         ifs=255;
-                    
+
                     ofs=GetSignal(path.lat[y],path.lon[y]);
-                    
+
                     if (ofs>ifs)
                         ifs=ofs;
-                    
+
                     PutSignal(path.lat[y],path.lon[y],(unsigned char)ifs);
-                    
-                    if (fd!=NULL)
-                        fprintf(fd,"%.3f",field_strength);
+
+                    if (fd!=NULL) {
+                        textlen += snprintf(textout + textlen, MAX_LINE_LEN - textlen, "%.3f",field_strength);
+                    }
                 }
             }
-            
+
             else
             {
                 if (loss>255)
                     ifs=255;
                 else
                     ifs=(int)rint(loss);
-                
+
                 ofs=GetSignal(path.lat[y],path.lon[y]);
-                
+
                 if (ofs<ifs && ofs!=0)
                     ifs=ofs;
-                
+
                 PutSignal(path.lat[y],path.lon[y],(unsigned char)ifs);
             }
-            
-            if (fd!=NULL)
-            {
-                if (block)
-                    fprintf(fd," *");
-                
-                fprintf(fd,"\n");
+
+            if (fd!=NULL) {
+                textlen += snprintf(textout + textlen, MAX_LINE_LEN - textlen, "%s",
+                                    block ? " *\n" : "\n");
             }
-            
+
+            fwrite(textout, 1, textlen, fd);
+
             /* Mark this point as having been analyzed */
-            
+
             PutMask(path.lat[y],path.lon[y],(GetMask(path.lat[y],path.lon[y])&7)+(mask_value<<3));
         }
     }
 }
+
 
 void ElevationMap::LoadTopoData(int max_lon, int min_lon, int max_lat, int min_lat, Sdf &sdf)
 {
