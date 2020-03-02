@@ -26,12 +26,12 @@ private:
     
     const ElevationMap &em;
     const SplatRun &sr;
-    Path &path;
     
 public:
-    Report(const ElevationMap &em, const SplatRun &sr, Path &path)
-    : em(em), sr(sr), path(path),
-    dashes("---------------------------------------------------------------------------")
+    Report(const ElevationMap &em, const SplatRun &sr)
+    : dashes("---------------------------------------------------------------------------"),
+    em(em),
+    sr(sr)
     {}
     
     void PathReport(const Site &source, const Site &destination, const std::string &name, bool graph_it, elev_t elev[], const PatFile &pat, const Lrp &lrp);

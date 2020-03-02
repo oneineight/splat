@@ -18,11 +18,11 @@
 
 class BoundaryFile
 {
-    private: Path &path;
+private:
+    const SplatRun &sr;
+    
 public:
-    BoundaryFile(Path &path)
-    : path(path)
-    {}
+    BoundaryFile(const SplatRun &sr);
     
     void LoadBoundaries(const std::string &filename, ElevationMap &em);
 };

@@ -208,7 +208,7 @@ void GnuPlot::GraphElevation(const Site &source, const Site &destination, const 
     FILE	*fd=NULL, *fd1=NULL, *fd2=NULL;
     
     path.ReadPath(destination,source,em);  /* destination=RX, source=TX */
-    refangle=em.ElevationAngle(destination, source);
+    refangle=em.ElevationAngle(path, destination, source);
     distance=source.Distance(destination);
     
     fd=fopen("profile.gp","wb");
@@ -223,7 +223,7 @@ void GnuPlot::GraphElevation(const Site &source, const Site &destination, const 
         remote.lat=path.lat[x];
         remote.lon=path.lon[x];
         remote.alt=0.0;
-        angle=em.ElevationAngle(destination, remote);
+        angle=em.ElevationAngle(path, destination, remote);
         
         if (sr.clutter>0.0)
         {
@@ -235,7 +235,7 @@ void GnuPlot::GraphElevation(const Site &source, const Site &destination, const 
             else
                 remote2.alt=0.0;
             
-            clutter_angle=em.ElevationAngle(destination, remote2);
+            clutter_angle=em.ElevationAngle(path, destination, remote2);
         }
         
         if (sr.metric)
@@ -417,7 +417,7 @@ void GnuPlot::GraphHeight(const Site &source, const Site &destination, const str
     path.ReadPath(destination, source, em);  /* destination=RX, source=TX */
     azimuth=destination.Azimuth(source);
     distance=destination.Distance(source);
-    refangle=em.ElevationAngle(destination, source);
+    refangle=em.ElevationAngle(path, destination, source);
     b=em.GetElevation(destination)+destination.alt+sr.earthradius;
     
     /* Wavelength and path distance (great circle) in feet. */

@@ -52,6 +52,7 @@ void Report::PathReport(const Site &source, const Site &destination, const strin
     power_density;
     FILE	*fd=NULL, *fd2=NULL;
     
+    Path path(sr.arraysize, sr.ppd);
     sprintf(report_name,"%s-to-%s.txt",source.name.c_str(),destination.name.c_str());
     
     four_thirds_earth=FOUR_THIRDS*sr.earthradius;
@@ -104,8 +105,8 @@ void Report::PathReport(const Site &source, const Site &destination, const strin
     }
     
     azimuth=source.Azimuth(destination);
-    angle1=em.ElevationAngle(source,destination);
-    angle2=em.ElevationAngle2(source,destination,sr.earthradius);
+    angle1=em.ElevationAngle(path, source,destination);
+    angle2=em.ElevationAngle2(path, source,destination,sr.earthradius);
     
     if (pat.got_azimuth_pattern || pat.got_elevation_pattern)
     {
@@ -191,8 +192,8 @@ void Report::PathReport(const Site &source, const Site &destination, const strin
     
     azimuth=destination.Azimuth(source);
     
-    angle1=em.ElevationAngle(destination,source);
-    angle2=em.ElevationAngle2(destination,source,sr.earthradius);
+    angle1=em.ElevationAngle(path, destination,source);
+    angle2=em.ElevationAngle2(path, destination,source,sr.earthradius);
     
     fprintf(fd2,"Azimuth to %s: %.2f degrees\n",source.name.c_str(),azimuth);
     
@@ -761,6 +762,8 @@ void Report::ObstructionAnalysis(const Site &xmtr, const Site &rcvr, double f, F
     cos_tx_angle_f1, cos_tx_angle_fpt6, d_tx, d_x,
     h_r_f1, h_r_fpt6, h_f, h_los, lambda=0.0;
     char	string[255], string_fpt6[255], string_f1[255];
+    
+    Path path(sr.arraysize, sr.ppd);
     
     path.ReadPath(xmtr, rcvr, em);
     h_r=em.GetElevation(rcvr)+rcvr.alt+sr.earthradius;

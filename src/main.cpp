@@ -686,15 +686,12 @@ int main(int argc, const char * argv[])
     elev_t *elev = new elev_t[sr.arraysize+10];
     check_allocation(elev, "elev", sr);
     
-    Path *path_p = new Path(sr.arraysize, sr.ppd);
-    check_allocation(path_p, "path_p", sr);
-    
-    ElevationMap *em_p = new ElevationMap(*path_p, sr);
+    ElevationMap *em_p = new ElevationMap(sr);
     check_allocation(em_p, "em_p", sr);
     
     Lrp lrp(sr.forced_erp, sr.forced_freq);
     Ppm ppm(sr, mapfile, tx_site, *em_p);
-    BoundaryFile bf(*path_p);
+    BoundaryFile bf(sr);
     CityFile cf;
     Region region;
     
@@ -932,7 +929,7 @@ int main(int argc, const char * argv[])
     
     /***** Let the SPLATting begin! *****/
     
-    Report report(*em_p, sr, *path_p);
+    Report report(*em_p, sr);
     
     if (sr.pt2pt_mode)
     {

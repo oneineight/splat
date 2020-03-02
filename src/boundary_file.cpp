@@ -8,17 +8,21 @@
  * This file is covered by the LICENSE.md file in the root of this project.
  */
 
-#include "boundary_file.h"
-
 #include <string>
 #include <cstring>
 #include <cstdio>
 
+#include "splat_run.h"
 #include "site.h"
 #include "path.h"
+#include "boundary_file.h"
 #include "elevation_map.h"
 
 using namespace std;
+
+BoundaryFile::BoundaryFile(const SplatRun &sr)
+:sr(sr)
+{}
 
 void BoundaryFile::LoadBoundaries(const string &filename, ElevationMap &em)
 {
@@ -33,6 +37,8 @@ void BoundaryFile::LoadBoundaries(const string &filename, ElevationMap &em)
     char	string[80];
     Site source, destination;
     FILE	*fd=NULL;
+    
+    Path path(sr.arraysize, sr.ppd);
     
     fd=fopen(filename.c_str(),"r");
     

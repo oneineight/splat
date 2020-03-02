@@ -28,8 +28,6 @@ class ElevationMap
 {
   
 private:
-    Path &path;
-    
     const SplatRun &sr;
     double avgpathlen;
     int totalpaths;
@@ -45,7 +43,7 @@ public:
     int min_elevation;
     
 public:
-    ElevationMap(Path &path, const SplatRun &sr);
+    ElevationMap(const SplatRun &sr);
     
     void LoadTopoData(int max_lon, int min_lon, int max_lat, int min_lat, Sdf &sdf);
     
@@ -61,9 +59,9 @@ public:
     
     int AddElevation(double lat, double lon, double height);
     
-    double ElevationAngle(const Site &source, const Site &destination) const;
+    double ElevationAngle(Path &path, const Site &source, const Site &destination) const;
     
-    double ElevationAngle2(const Site &source, const Site &destination, double er) const;
+    double ElevationAngle2(Path &path, const Site &source, const Site &destination, double er) const;
     
     double AverageTerrain(const Site &source, double azimuthx, double start_distance, double end_distance) const;
     
