@@ -28,15 +28,15 @@ public:
     
 public:
     Dem(int size)
-    :data(std::vector<short>(size * size)),
-    mask(std::vector<unsigned char>(size * size)),
-    signal(std::vector<unsigned char>(size * size)),
-    min_north(0),
+    : min_north(0),
     max_north(0),
     min_west(0),
     max_west(0),
     max_el(0),
-    min_el(0)
+    min_el(0),
+    data(std::vector<short>(size * size)),
+    mask(std::vector<unsigned char>(size * size)),
+    signal(std::vector<unsigned char>(size * size))
     {}
     
     ~Dem();

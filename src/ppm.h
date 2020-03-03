@@ -29,9 +29,9 @@ private:
 public:
     Ppm(const SplatRun &sr, std::string &filename, const std::vector<Site> &xmtr, const ElevationMap &em)
     : sr(sr),
+    em(em),
     filename(filename),
-    xmtr(xmtr),
-    em(em)
+    xmtr(xmtr)
     {}
     
 void WritePPM();

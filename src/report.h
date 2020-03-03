@@ -12,10 +12,10 @@
 #define report_h
 
 #include <string>
+#include "path.h"
 
 class ElevationMap;
 class SplatRun;
-class Path;
 class Site;
 class PatFile;
 
@@ -26,12 +26,14 @@ private:
     
     const ElevationMap &em;
     const SplatRun &sr;
+    Path path;
     
 public:
     Report(const ElevationMap &em, const SplatRun &sr)
     : dashes("---------------------------------------------------------------------------"),
     em(em),
-    sr(sr)
+    sr(sr),
+    path(sr.arraysize, sr.ppd)
     {}
     
     void PathReport(const Site &source, const Site &destination, const std::string &name, bool graph_it, elev_t elev[], const PatFile &pat, const Lrp &lrp);

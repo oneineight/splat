@@ -999,7 +999,7 @@ int main(int argc, const char * argv[])
             
             if (sr.kml)
             {
-                Kml kml(*path_p, *em_p, sr);
+                Kml kml(*em_p, sr);
                 kml.WriteKML(tx_site[x],rx_site);
             }
             
@@ -1038,7 +1038,7 @@ int main(int argc, const char * argv[])
                 report.PathReport(tx_site[x],rx_site,filename, true,elev, pat, lrp);
             }
             
-            GnuPlot gnuPlot(*path_p, sr);
+            GnuPlot gnuPlot(sr);
             
             if (sr.terrain_plot)
             {
@@ -1114,7 +1114,7 @@ int main(int argc, const char * argv[])
         
         if (boundary_file.size() > 0)
         {
-            BoundaryFile boundaryFile(*path_p);
+            BoundaryFile boundaryFile(sr);
             
             for (y=0; y<boundary_file.size(); y++)
                 boundaryFile.LoadBoundaries(boundary_file[y], *em_p);
@@ -1165,8 +1165,6 @@ int main(int argc, const char * argv[])
     
  
     delete em_p;
-    
-    delete path_p;
     
     // TODO: Why can't we clear. It complains about items already being deleted?!
     //dem.clear();

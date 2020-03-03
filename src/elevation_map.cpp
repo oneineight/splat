@@ -299,7 +299,7 @@ double ElevationMap::ElevationAngle2(Path &path, const Site &source, const Site 
     return elevation;
 }
 
-double ElevationMap::AverageTerrain(const Site &source, double azimuthx, double start_distance, double end_distance) const
+double ElevationMap::AverageTerrain(Path &path, const Site &source, double azimuthx, double start_distance, double end_distance) const
 {
     /* This function returns the average terrain calculated in
      the direction of "azimuth" (degrees) between "start_distance"
@@ -393,7 +393,7 @@ double ElevationMap::AverageTerrain(const Site &source, double azimuthx, double 
     }
 }
 
-double ElevationMap::haat(const Site &antenna) const
+double ElevationMap::haat(Path &path, const Site &antenna) const
 {
     /* This function returns the antenna's Height Above Average
      Terrain (HAAT) based on FCC Part 73.313(d).  If a critical
@@ -410,7 +410,7 @@ double ElevationMap::haat(const Site &antenna) const
     
     for (c=0, azi=0; azi<=315 && error==0; azi+=45)
     {
-        terrain=AverageTerrain(antenna, (double)azi, 2.0, 10.0);
+        terrain=AverageTerrain(path, antenna, (double)azi, 2.0, 10.0);
         
         if (terrain<-9998.0)  /* SDF data is missing */
             error=1;

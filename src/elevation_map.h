@@ -53,7 +53,7 @@ public:
     
     int GetMask(double lat, double lon) const;
     
-    double haat(const Site &antenna) const;
+    double haat(Path &path, const Site &antenna) const;
     
     double GetElevation(const Site &location) const;
     
@@ -63,7 +63,7 @@ public:
     
     double ElevationAngle2(Path &path, const Site &source, const Site &destination, double er) const;
     
-    double AverageTerrain(const Site &source, double azimuthx, double start_distance, double end_distance) const;
+    double AverageTerrain(Path &path, const Site &source, double azimuthx, double start_distance, double end_distance) const;
     
     void PlaceMarker(const Site &location);
     

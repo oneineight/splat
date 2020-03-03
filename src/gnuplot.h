@@ -12,18 +12,18 @@
 #define gnuplot_h
 
 #include <stdio.h>
+#include "path.h"
 
 class GnuPlot
 {
 private:
     const SplatRun &sr;
-    
-    Path &path;
+    Path path;
     
 public:
-    GnuPlot(Path &path, const SplatRun &sr)
-    : path(path),
-    sr(sr)
+    GnuPlot(const SplatRun &sr)
+    : sr(sr),
+    path(sr.arraysize, sr.ppd)
     {}
     
 void GraphTerrain(const Site &source, const Site &destination, const std::string &name, const ElevationMap &em);

@@ -94,7 +94,7 @@ void Report::PathReport(const Site &source, const Site &destination, const strin
         fprintf(fd2,"Antenna height: %.2f feet AGL / %.2f feet AMSL\n",source.alt, source.alt+em.GetElevation(source));
     }
     
-    haavt=em.haat(source);
+    haavt=em.haat(path, source);
     
     if (haavt>-4999.0)
     {
@@ -174,7 +174,7 @@ void Report::PathReport(const Site &source, const Site &destination, const strin
         fprintf(fd2,"Antenna height: %.2f feet AGL / %.2f feet AMSL\n",destination.alt, destination.alt+em.GetElevation(destination));
     }
     
-    haavt=em.haat(destination);
+    haavt=em.haat(path, destination);
     
     if (haavt>-4999.0)
     {
@@ -714,7 +714,7 @@ void Report::SiteReport(const Site &xmtr)
         fprintf(fd,"Antenna height: %.2f feet AGL / %.2f feet AMSL\n",xmtr.alt, xmtr.alt+em.GetElevation(xmtr));
     }
     
-    terrain=em.haat(xmtr);
+    terrain=em.haat(path, xmtr);
     
     if (terrain>-4999.0)
     {
@@ -730,7 +730,7 @@ void Report::SiteReport(const Site &xmtr)
         for (azi=0; azi<=315; azi+=45)
         {
             fprintf(fd,"Average terrain at %3d degrees azimuth: ",azi);
-            terrain=em.AverageTerrain(xmtr,(double)azi,2.0,10.0);
+            terrain=em.AverageTerrain(path, xmtr,(double)azi,2.0,10.0);
             
             if (terrain>-4999.0)
             {
