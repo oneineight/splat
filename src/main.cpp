@@ -690,7 +690,7 @@ int main(int argc, const char * argv[])
     check_allocation(em_p, "em_p", sr);
     
     Lrp lrp(sr.forced_erp, sr.forced_freq);
-    Ppm ppm(sr, mapfile, tx_site, *em_p);
+    Image image(sr, mapfile, tx_site, *em_p);
     BoundaryFile bf(sr);
     CityFile cf;
     Region region;
@@ -742,14 +742,14 @@ int main(int argc, const char * argv[])
         
         if (lrp.erp==0.0)
         {
-            ppm.WritePPMLR(region);
+            image.WriteImageLR(region);
         }
         else
         {
             if (sr.dbm)
-                ppm.WritePPMDBM(region);
+                image.WriteImageDBM(region);
             else
-                ppm.WritePPMSS(region);
+                image.WriteImageSS(region);
         }
         
         exit(0);
@@ -1126,17 +1126,17 @@ int main(int argc, const char * argv[])
         /* Plot the map */
         
         if (sr.coverage || sr.pt2pt_mode || sr.topomap)
-            ppm.WritePPM();
+            image.WriteImage();
         
         else
         {
             if (lrp.erp==0.0)
-                ppm.WritePPMLR(region);
+                image.WriteImageLR(region);
             else
                 if (sr.dbm)
-                    ppm.WritePPMDBM(region);
+                    image.WriteImageDBM(region);
                 else
-                    ppm.WritePPMSS(region);
+                    image.WriteImageSS(region);
         }
     }
     

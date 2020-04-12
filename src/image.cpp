@@ -1,4 +1,4 @@
-/** @file ppm.cpp
+/** @file image.cpp
  *
  * File created by Peter Watkins (KE7IST) 1/8/18.
  * Derived from original project code.
@@ -28,7 +28,7 @@
 
 using namespace std;
 
-void Ppm::WritePPM()
+void Image::WriteImage()
 {
     /* This function generates a topographic map in Portable Pix Map
      (PPM) format based on logarithmically scaled topology data,
@@ -83,7 +83,7 @@ void Ppm::WritePPM()
     
     if (sr.kml&& !sr.geo)
     {
-        WriteKmlForPpm(SplatRun::splat_name + " Line-of-Sight Contour", "Line-of-Sight Contour", false, kmlfile, mapfile, north, south, east, west, "");
+        WriteKmlForImage(SplatRun::splat_name + " Line-of-Sight Contour", "Line-of-Sight Contour", false, kmlfile, mapfile, north, south, east, west, "");
     }
     
     fd=fopen(mapfile.c_str(),"wb");
@@ -233,7 +233,7 @@ void Ppm::WritePPM()
 }
 
 
-void Ppm::WritePPMLR(Region &region)
+void Image::WriteImageLR(Region &region)
 {
     /* This function generates a topographic map in Portable Pix Map
      (PPM) format based on the content of flags held in the mask[][]
@@ -296,7 +296,7 @@ void Ppm::WritePPMLR(Region &region)
     
     if (sr.kml&& sr.geo==0)
     {
-        WriteKmlForPpm("SPLAT! Path Loss Overlay", xmtr[0].name + " Transmitter Path Loss Overlay", true, kmlfile, mapfile, north, south, east, west, ckfile);
+        WriteKmlForImage("SPLAT! Path Loss Overlay", xmtr[0].name + " Transmitter Path Loss Overlay", true, kmlfile, mapfile, north, south, east, west, ckfile);
     }
     
     fd=fopen(mapfile.c_str(),"wb");
@@ -604,7 +604,7 @@ void Ppm::WritePPMLR(Region &region)
     fflush(stdout);
 }
 
-void Ppm::WritePPMSS(Region &region)
+void Image::WriteImageSS(Region &region)
 {
     /* This function generates a topographic map in Portable Pix Map
      (PPM) format based on the signal strength values held in the
@@ -667,7 +667,7 @@ void Ppm::WritePPMSS(Region &region)
     
     if (sr.kml&& sr.geo==0)
     {
-        WriteKmlForPpm("SPLAT! Signal Strength Contours", xmtr[0].name + " Transmitter Contours", true, kmlfile, mapfile, north, south, east, west, ckfile);
+        WriteKmlForImage("SPLAT! Signal Strength Contours", xmtr[0].name + " Transmitter Contours", true, kmlfile, mapfile, north, south, east, west, ckfile);
     }
     
     fd=fopen(mapfile.c_str(),"wb");
@@ -1011,7 +1011,7 @@ void Ppm::WritePPMSS(Region &region)
     fflush(stdout);
 }
 
-void Ppm::WritePPMDBM(Region &region)
+void Image::WriteImageDBM(Region &region)
 {
     /* This function generates a topographic map in Portable Pix Map
      (PPM) format based on the signal power level values held in the
@@ -1074,7 +1074,7 @@ void Ppm::WritePPMDBM(Region &region)
     
     if (sr.kml&& sr.geo==0)
     {
-        WriteKmlForPpm("SPLAT! Signal Power Level Contours", xmtr[0].name + " Transmitter Contours", true, kmlfile, mapfile, north, south, east, west, ckfile);
+        WriteKmlForImage("SPLAT! Signal Power Level Contours", xmtr[0].name + " Transmitter Contours", true, kmlfile, mapfile, north, south, east, west, ckfile);
     }
     
     fd=fopen(mapfile.c_str(),"wb");
@@ -1494,7 +1494,7 @@ void Ppm::WritePPMDBM(Region &region)
     fflush(stdout);
 }
 
-void Ppm::WriteKmlForPpm(const string &groundOverlayName, const string &description, bool writeScreenOverlay, const string &kmlfile, const string &mapfile, double north, double south, double east, double west, const string &ckfile)
+void Image::WriteKmlForImage(const string &groundOverlayName, const string &description, bool writeScreenOverlay, const string &kmlfile, const string &mapfile, double north, double south, double east, double west, const string &ckfile)
 {
     fstream fs;
     fs.open(kmlfile.c_str(), fstream::out);
@@ -1579,7 +1579,7 @@ void Ppm::WriteKmlForPpm(const string &groundOverlayName, const string &descript
     fs.close();
 }
 
-void Ppm::WriteGeo(const string &geofile, const string &mapfile, double north, double south, double east, double west, unsigned int width, unsigned int height)
+void Image::WriteGeo(const string &geofile, const string &mapfile, double north, double south, double east, double west, unsigned int width, unsigned int height)
 {
     fstream fs;
     fs.open(geofile.c_str(), fstream::out);

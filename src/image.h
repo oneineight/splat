@@ -1,4 +1,4 @@
-/** @file ppm.h
+/** @file image.h
  *
  * File created by Peter Watkins (KE7IST) 1/8/18.
  * Derived from original project code.
@@ -8,8 +8,8 @@
  * This file is covered by the LICENSE.md file in the root of this project.
  */
 
-#ifndef ppm_h
-#define ppm_h
+#ifndef image_h
+#define image_h
 
 #include <string>
 #include <vector>
@@ -19,7 +19,7 @@ class ElevationMap;
 class Site;
 class Region;
 
-class Ppm {
+class Image {
 private:
     const SplatRun &sr;
     const ElevationMap &em;
@@ -27,26 +27,26 @@ private:
     const std::vector<Site> &xmtr;
 
 public:
-    Ppm(const SplatRun &sr, std::string &filename, const std::vector<Site> &xmtr, const ElevationMap &em)
+    Image(const SplatRun &sr, std::string &filename, const std::vector<Site> &xmtr, const ElevationMap &em)
     : sr(sr),
     em(em),
     filename(filename),
     xmtr(xmtr)
     {}
     
-void WritePPM();
+void WriteImage();
 
-void WritePPMLR(Region &region);
+void WriteImageLR(Region &region);
 
-void WritePPMSS(Region &region);
+void WriteImageSS(Region &region);
 
-void WritePPMDBM(Region &region);
+void WriteImageDBM(Region &region);
     
 private:
     
-    void WriteKmlForPpm(const std::string &groundOverlayName, const std::string &description, bool writeScreenOverlay, const std::string &kmlfile, const std::string &mapfile, double north, double south, double east, double west, const std::string &ckfile);
+    void WriteKmlForImage(const std::string &groundOverlayName, const std::string &description, bool writeScreenOverlay, const std::string &kmlfile, const std::string &mapfile, double north, double south, double east, double west, const std::string &ckfile);
     static void WriteGeo(const std::string &geofile, const std::string &mapfile, double north, double south, double east, double west, unsigned int width, unsigned int height);
 
 };
 
-#endif /* ppm_h */
+#endif /* image_h */
