@@ -31,7 +31,7 @@
 #include "elevation_map.h"
 #include "utilities.h"
 #include "region.h"
-#include "ppm.h"
+#include "image.h"
 #include "itwom3.0.h"
 #include "anf.h"
 #include "boundary_file.h"

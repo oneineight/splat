@@ -15,7 +15,7 @@ add_executable(splat
     main.cpp
     pat_file.cpp
     path.cpp
-    ppm.cpp
+    image.cpp
     region.cpp
     report.cpp
     sdf.cpp

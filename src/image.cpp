@@ -23,7 +23,7 @@
 #include "region.h"
 #include "sdf.h"
 #include "elevation_map.h"
-#include "ppm.h"
+#include "image.h"
 #include "fontdata.h"
 
 using namespace std;
