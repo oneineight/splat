@@ -14,6 +14,7 @@
 #include <string>
 
 #include "site.h"
+#include "imagewriter.h"
 
 #define EARTHRADIUS 20902230.97
 #define	METERS_PER_MILE 1609.344
@@ -94,7 +95,7 @@ public:
     bool smooth_contours;
     bool verbose;
     bool multithread;
-    
+    ImageType imagetype;
 };
 
 #endif /* splat_run_h */

@@ -13,6 +13,7 @@
 
 #include <string>
 #include <vector>
+#include "imagewriter.h"
 
 class SplatRun;
 class ElevationMap;
@@ -34,7 +35,7 @@ public:
     xmtr(xmtr)
     {}
     
-void WriteImage();
+void WriteImage(ImageType imagetype);
 
 void WriteImageLR(Region &region);
 

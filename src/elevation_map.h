@@ -77,6 +77,8 @@ public:
     
     unsigned char GetSignal(double lat, double lon) const;
     
+    const Dem *FindDEM(double lat, double lon, int &x, int &y) const;
+    
     ~ElevationMap();
     
 private:

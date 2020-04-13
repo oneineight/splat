@@ -1548,3 +1548,22 @@ int ElevationMap::PutSignal(double lat, double lon, unsigned char signal)
     else
         return 0;
 }
+
+/* Returns the first DEM containing the lat/long,
+ * or NULL if not found.
+ *
+ * x and y will contain the offsets into the DEM array of
+ * the coordinate.
+ */
+const Dem *ElevationMap::FindDEM(double lat, double lon, int &x, int &y) const
+{
+    for (int i=0; i<sr.maxpages; ++i)
+    {
+        x=(int)rint(sr.ppd*(lat-(double)dem[i].min_north));
+        y=sr.mpi-(int)rint(sr.ppd*(Utilities::LonDiff((double)dem[i].max_west,lon)));
+
+        if (x>=0 && x<=sr.mpi && y>=0 && y<=sr.mpi)
+            return &dem[i];
+    }
+    return NULL;
+}

@@ -31,6 +31,7 @@
  */
 
 #include <iostream>
+#include <string>
 #include <exception>
 #include "imagewriter.h"
 
@@ -62,14 +63,14 @@ typedef uint32_t Pixel;
 
 ImageWriter::ImageWriter() {}; // private constructor
 
-ImageWriter::ImageWriter(const char* filename, ImageType imagetype, int width, int height) :
+ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype, int width, int height) :
         m_imagetype(imagetype),
         m_width(width),
         m_height(height)
 {
     m_imgline = new unsigned char[3 * m_width];
 
-    if ( (m_fp=fopen(filename,"wb")) == NULL) {
+    if ( (m_fp=fopen(filename.c_str(),"wb")) == NULL) {
         throw std::invalid_argument("Invalid filename");
     }
 

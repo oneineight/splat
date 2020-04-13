@@ -1126,7 +1126,7 @@ int main(int argc, const char * argv[])
         /* Plot the map */
         
         if (sr.coverage || sr.pt2pt_mode || sr.topomap)
-            image.WriteImage();
+            image.WriteImage(sr.imagetype);
         
         else
         {

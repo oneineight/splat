@@ -15,6 +15,7 @@ add_executable(splat
     main.cpp
     pat_file.cpp
     path.cpp
+    imagewriter.cpp
     image.cpp
     region.cpp
     report.cpp

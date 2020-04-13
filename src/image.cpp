@@ -13,6 +13,7 @@
 #include <fstream>
 #include <cmath>
 #include <cstdio>
+#include <iostream>
 #include "utilities.h"
 #include "site.h"
 #include "path.h"
@@ -28,43 +29,93 @@
 
 using namespace std;
 
-void Image::WriteImage()
+#ifndef _WIN32
+#define RGB(r,g,b) ( ((uint32_t)(uint8_t)r)|((uint32_t)((uint8_t)g)<<8)|((uint32_t)((uint8_t)b)<<16) )
+#endif
+
+#define COLOR_RED               RGB(255, 0, 0)
+#define COLOR_LIGHTCYAN         RGB(128,128,255)
+#define COLOR_GREEN             RGB(0,255,0)
+#define COLOR_DARKGREEN         RGB(0,100,0)
+#define COLOR_DARKSEAGREEN1     RGB(193,255,193)
+#define COLOR_CYAN              RGB(0,255,255)
+#define COLOR_YELLOW            RGB(255,255,0)
+#define COLOR_GREENYELLOW       RGB(173,255,47)
+#define COLOR_MEDIUMSPRINGGREEN RGB(0,250,154)
+#define COLOR_MEDIUMVIOLET      RGB(147,112,219)
+#define COLOR_PINK              RGB(255,192,203)
+#define COLOR_ORANGE            RGB(255,165,0)
+#define COLOR_SIENNA            RGB(255,130,71)
+#define COLOR_BLANCHEDALMOND    RGB(255,235,205)
+#define COLOR_DARKTURQUOISE     RGB(0,206,209)
+#define COLOR_TAN               RGB(210,180,140)
+#define COLOR_GOLD2             RGB(238,201,0)
+#define COLOR_MEDIUMBLUE        RGB(0,0,170)
+#define COLOR_WHITE             RGB(255,255,255)
+#define COLOR_BLACK             RGB(0,0,0)
+
+/* Generates a topographic map image based on logarithmically scaled
+ * topology data as well as the content of flags held in the mask[][] array.
+ * The image created is rotated counter-clockwise 90 degrees from its
+ * representation in em.dem[][] so that north points up and east points right.
+ */
+void Image::WriteImage(ImageType imagetype)
 {
-    /* This function generates a topographic map in Portable Pix Map
-     (PPM) format based on logarithmically scaled topology data,
-     as well as the content of flags held in the mask[][] array.
-     The image created is rotated counter-clockwise 90 degrees
-     from its representation in em.dem[][] so that north points
-     up and east points right in the image generated. */
-    
-    string basename, mapfile, geofile, kmlfile;
-    bool found;
+    string basename, mapfile, geofile, kmlfile, suffix;
+#if DO_KMZ
+    string kmzfile;
+#endif
     unsigned char mask;
     unsigned width, height, terrain;
-    int indx, x, y, x0=0, y0=0;
-    double lat, lon, conversion, one_over_gamma,
+    int x0=0, y0=0;
+    const Dem *dem = NULL;
+    double conversion, one_over_gamma,
     north, south, east, west, minwest;
     FILE *fd;
-    
+
+    Pixel pixel = 0;
+
     one_over_gamma=1.0/GAMMA;
     conversion=255.0/pow((double)(em.max_elevation-em.min_elevation),one_over_gamma);
     
     width=(unsigned)(sr.ippd*Utilities::ReduceAngle(em.max_west-em.min_west));
     height=(unsigned)(sr.ippd*Utilities::ReduceAngle(em.max_north-em.min_north));
     
+    switch (imagetype) {
+        default:
+#ifdef HAVE_LIBPNG
+        case IMAGETYPE_PNG:
+            suffix = ".png";
+            break;
+#endif
+#ifdef HAVE_LIBJPEG
+        case IMAGETYPE_JPG:
+            suffix = ".jpg";
+            break;
+#endif
+        case IMAGETYPE_PPM:
+            suffix = ".ppm";
+            break;
+    }
+    
     if (filename.empty())
     {
         basename = Utilities::Basename(xmtr[0].filename);
-        filename = basename + ".ppm";
+        filename = basename + suffix;
     }
     else
     {
         basename = Utilities::Basename(filename);
     }
     
-    mapfile = basename + ".ppm";
+    
+    mapfile = basename + suffix;
     geofile = basename + ".geo";
     kmlfile = basename + ".kml";
+    
+#if DO_KMZ
+    kmzfile = basename + ".kmz";
+#endif
     
     minwest=((double)em.min_west)+sr.dpp;
     
@@ -92,126 +143,119 @@ void Image::WriteImage()
     fprintf(stdout,"\nWriting \"%s\" (%ux%u pixmap image)... ",mapfile.c_str(),width,height);
     fflush(stdout);
     
-    for (y = 0, lat=north; y<(int)height; y++, lat=north-(sr.dpp*(double)y))
+    try {
+        ImageWriter iw = ImageWriter(mapfile,imagetype,width,height);
+    
+    for (int y = 0, lat=north; y<(int)height; y++, lat=north-(sr.dpp*(double)y))
     {
-        for (x=0, lon=em.max_west; x<(int)width; x++, lon=(double)em.max_west-(sr.dpp*(double)x))
+        for (int x=0, lon=em.max_west; x<(int)width; x++, lon=(double)em.max_west-(sr.dpp*(double)x))
         {
             if (lon<0.0)
                 lon+=360.0;
             
-            for (indx=0, found = false; indx<sr.maxpages && !found;)
+            dem = em.FindDEM(lat, lon, x0, y0);
+            if (dem)
             {
-                x0=(int)rint(sr.ppd*(lat-(double)em.dem[indx].min_north));
-                y0=sr.mpi-(int)rint(sr.ppd*(Utilities::LonDiff((double)em.dem[indx].max_west,lon)));
-                
-                if (x0>=0 && x0<=sr.mpi && y0>=0 && y0<=sr.mpi)
-                    found = true;
-                else
-                    indx++;
-            }
-            
-            if (found)
-            {
-                mask=em.dem[indx].mask[x0 *sr.ippd + y0];
+                mask=dem->mask[x0 *sr.ippd + y0];
                 
                 if (mask&2)
                 /* Text Labels: Red */
-                    fprintf(fd,"%c%c%c",255,0,0);
+                    pixel=COLOR_RED;
                 
                 else if (mask&4)
                 /* County Boundaries: Light Cyan */
-                    fprintf(fd,"%c%c%c",128,128,255);
+                    pixel=COLOR_LIGHTCYAN;
                 
                 else switch (mask&57)
                 {
                     case 1:
                         /* TX1: Green */
-                        fprintf(fd,"%c%c%c",0,255,0);
+                        pixel=COLOR_GREEN;
                         break;
                         
                     case 8:
                         /* TX2: Cyan */
-                        fprintf(fd,"%c%c%c",0,255,255);
+                        pixel=COLOR_CYAN;
                         break;
                         
                     case 9:
                         /* TX1 + TX2: Yellow */
-                        fprintf(fd,"%c%c%c",255,255,0);
+                        pixel=COLOR_YELLOW;
                         break;
                         
                     case 16:
                         /* TX3: Medium Violet */
-                        fprintf(fd,"%c%c%c",147,112,219);
+                        pixel=COLOR_MEDIUMVIOLET;
                         break;
                         
                     case 17:
                         /* TX1 + TX3: Pink */
-                        fprintf(fd,"%c%c%c",255,192,203);
+                        pixel=COLOR_PINK;
                         break;
                         
                     case 24:
                         /* TX2 + TX3: Orange */
-                        fprintf(fd,"%c%c%c",255,165,0);
+                        pixel=COLOR_ORANGE;
                         break;
                         
                     case 25:
                         /* TX1 + TX2 + TX3: Dark Green */
-                        fprintf(fd,"%c%c%c",0,100,0);
+                        pixel=COLOR_DARKGREEN;
                         break;
                         
                     case 32:
                         /* TX4: Sienna 1 */
-                        fprintf(fd,"%c%c%c",255,130,71);
+                        pixel=COLOR_SIENNA;
                         break;
                         
                     case 33:
                         /* TX1 + TX4: Green Yellow */
-                        fprintf(fd,"%c%c%c",173,255,47);
+                        pixel=COLOR_GREENYELLOW;
                         break;
                         
                     case 40:
                         /* TX2 + TX4: Dark Sea Green 1 */
-                        fprintf(fd,"%c%c%c",193,255,193);
+                        pixel=COLOR_DARKSEAGREEN1;
                         break;
                         
                     case 41:
                         /* TX1 + TX2 + TX4: Blanched Almond */
-                        fprintf(fd,"%c%c%c",255,235,205);
+                        pixel=COLOR_BLANCHEDALMOND;
                         break;
                         
                     case 48:
                         /* TX3 + TX4: Dark Turquoise */
-                        fprintf(fd,"%c%c%c",0,206,209);
+                        pixel=COLOR_DARKTURQUOISE;
                         break;
                         
                     case 49:
                         /* TX1 + TX3 + TX4: Medium Spring Green */
-                        fprintf(fd,"%c%c%c",0,250,154);
+                        pixel=COLOR_MEDIUMSPRINGGREEN;
                         break;
                         
                     case 56:
                         /* TX2 + TX3 + TX4: Tan */
-                        fprintf(fd,"%c%c%c",210,180,140);
+                        pixel=COLOR_TAN;
                         break;
                         
                     case 57:
                         /* TX1 + TX2 + TX3 + TX4: Gold2 */
-                        fprintf(fd,"%c%c%c",238,201,0);
+                        pixel=COLOR_GOLD2;
                         break;
                         
                     default:
                         if (sr.ngs)  /* No terrain */
-                            fprintf(fd,"%c%c%c",255,255,255);
+                            pixel = COLOR_MEDIUMBLUE;
                         else
                         {
                             /* Sea-level: Medium Blue */
-                            if (em.dem[indx].data[x0 *sr.ippd + y0]==0)
-                                fprintf(fd,"%c%c%c",0,0,170);
+                            if (dem->data[x0 *sr.ippd + y0]==0)
+                                pixel = COLOR_MEDIUMBLUE;
                             else
                             {
                                 /* Elevation: Greyscale */
-                                terrain=(unsigned)(0.5+pow((double)(em.dem[indx].data[x0 *sr.ippd + y0]-em.min_elevation),one_over_gamma)*conversion);
-                                fprintf(fd,"%c%c%c",terrain,terrain,terrain);
+                                terrain=(unsigned)(0.5+pow((double)(dem->data[x0 *sr.ippd + y0]-em.min_elevation),one_over_gamma)*conversion);
+                                pixel=RGB(terrain,terrain,terrain);
                             }
                         }
                 }
@@ -222,10 +266,53 @@ void Image::WriteImage()
                 /* We should never get here, but if */
                 /* we do, display the region as black */
                 
-                fprintf(fd,"%c%c%c",0,0,0);
+                pixel=COLOR_BLACK;
             }
+            
+            iw.AppendPixel(pixel);
         }
+        
+        iw.EmitLine();
     }
+        iw.Finish();
+    } catch (const std::exception& e) {
+        std::cerr << "Error writing " << mapfile << ": " << e.what() << std::endl;
+        return;
+    }
+    
+#if DO_KMZ
+    if (kml) {
+        bool success = false;
+        struct zip_t *zip = zip_open(kmzfile, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w');
+        if (zip) {
+            /* Pack the KML */
+            if (zip_entry_open(zip, kmlfile) == 0) {
+                if (zip_entry_fwrite(zip, kmlfile) == 0) {
+                    success = true;
+                }
+                zip_entry_close(zip);
+            }
+            /* Pack the map image */
+            if (zip_entry_open(zip, mapfile) == 0) {
+                if (zip_entry_fwrite(zip, mapfile) == 0) {
+                    success = true;
+                }
+                zip_entry_close(zip);
+            }
+            zip_close(zip);
+        }
+        
+        if (success) {
+            unlink(mapfile);
+            unlink(kmlfile);
+            std::cout << std::endl << "KMZ file written to: \"" << kmzfile << "\"" << std::endl;
+        } else {
+            unlink(kmzfile);
+            std::cout << std::endl << "Couldn't create KMZ file." << std::endl;
+        }
+        free(kmzfile);
+    }
+#endif
     
     fclose(fd);
     fprintf(stdout,"Done!\n");
