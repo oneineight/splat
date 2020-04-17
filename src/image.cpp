@@ -320,7 +320,11 @@ void Image::WriteImage(ImageType imagetype)
 }
 
 
-void Image::WriteImageLR(Region &region)
+/* Generates a topographic map based on the content of flags held in the mask[][]
+ * array (only). The image created is rotated counter-clockwise 90 degrees from
+ * its representation in em.dem[][] so that north points up and east points right.
+ */
+void Image::WriteImageLR(ImageType imagetype, Region &region)
 {
     /* This function generates a topographic map in Portable Pix Map
      (PPM) format based on the content of flags held in the mask[][]
@@ -328,15 +332,21 @@ void Image::WriteImageLR(Region &region)
      90 degrees from its representation in em.dem[][] so that north
      points up and east points right in the image generated. */
     
-    string basename, mapfile, geofile, kmlfile, ckfile;
-    bool found;
-    unsigned width, height, red, green, blue, terrain=0;
+    string basename, mapfile, geofile, kmlfile, ckfile, suffix;
+#if DO_KMZ
+    string kmzfile;
+#endif
+    unsigned int width, height, red, green, blue, terrain=0;
+    unsigned int imgheight, imgwidth;
     unsigned char mask, cityorcounty;
     int indx, x, y, z, colorwidth, x0 = 0, y0 = 0, loss, level,
     hundreds, tens, units, match;
+    const Dem *dem = NULL;
     double lat, lon, conversion, one_over_gamma,
     north, south, east, west, minwest;
     FILE *fd;
+    
+    Pixel pixel = 0;
     
     one_over_gamma=1.0/GAMMA;
     conversion=255.0/pow((double)(em.max_elevation-em.min_elevation),one_over_gamma);
@@ -346,20 +356,40 @@ void Image::WriteImageLR(Region &region)
     
     region.LoadLossColors(xmtr[0]);
     
+    switch (imagetype) {
+        default:
+#ifdef HAVE_LIBPNG
+        case IMAGETYPE_PNG:
+            suffix = ".png";
+            break;
+#endif
+#ifdef HAVE_LIBJPEG
+        case IMAGETYPE_JPG:
+            suffix = ".jpg";
+            break;
+#endif
+        case IMAGETYPE_PPM:
+            suffix = ".ppm";
+            break;
+    }
+    
     if (filename.empty())
     {
         basename = Utilities::Basename(xmtr[0].filename);
-        filename = basename + ".ppm";
+        filename = basename + suffix;
     }
     else
     {
         basename = Utilities::Basename(filename);
     }
     
-    mapfile = basename + ".ppm";
+    mapfile = basename + suffix;
     geofile = basename + ".geo";
     kmlfile = basename + ".kml";
-    ckfile  = basename + "-ck.ppm";
+#if DO_KMZ
+    kmzfile = basename + ".kmz";
+#endif
+    ckfile  = basename + "-ck" + suffix;
     
     minwest=((double)em.min_west)+sr.dpp;
     
@@ -369,7 +399,7 @@ void Image::WriteImageLR(Region &region)
     north=(double)em.max_north-sr.dpp;
     
     if (sr.kml|| sr.geo)
-        south=(double)em.min_north;	/* No bottom legend */
+        south=(double)em.min_north;    /* No bottom legend */
     else
         south=(double)em.min_north-(30.0/sr.ppd); /* 30 pixels for bottom legend */
     
@@ -391,20 +421,22 @@ void Image::WriteImageLR(Region &region)
     if (sr.kml|| sr.geo)
     {
         /* No bottom legend */
-        
-        fprintf(fd,"P6\n%u %u\n255\n",width,height);
-        fprintf(stdout,"\nWriting \"%s\" (%ux%u pixmap image)... ",mapfile.c_str(),width,height);
+        imgwidth = width;
+        imgheight = height;
     }
     
     else
     {
         /* Allow space for bottom legend */
-        
-        fprintf(fd,"P6\n%u %u\n255\n",width,height+30);
-        fprintf(stdout,"\nWriting \"%s\" (%ux%u pixmap image)... ",mapfile.c_str(),width,height+30);
+        imgwidth = width;
+        imgheight = height + 30;
     }
     
+    fprintf(stdout,"\nWriting LR map \"%s\" (%ux%u image)... ",mapfile.c_str(),imgwidth,imgheight);
     fflush(stdout);
+    
+    try {
+        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight);
     
     for (y = 0, lat=north; y<(int)height; y++, lat=north-(sr.dpp*(double)y))
     {
@@ -413,21 +445,12 @@ void Image::WriteImageLR(Region &region)
             if (lon<0.0)
                 lon+=360.0;
             
-            for (indx=0, found = false; indx<sr.maxpages && !found;)
-            {
-                x0=(int)rint(sr.ppd*(lat-(double)em.dem[indx].min_north));
-                y0=sr.mpi-(int)rint(sr.ppd*(Utilities::LonDiff((double)em.dem[indx].max_west,lon)));
-                
-                if (x0>=0 && x0<=sr.mpi && y0>=0 && y0<=sr.mpi)
-                    found = true;
-                else
-                    indx++;
-            }
+            dem = em.FindDEM(lat, lon, x0, y0);
             
-            if (found)
+            if (dem)
             {
-                mask=em.dem[indx].mask[x0 *sr.ippd + y0];
-                loss=(em.dem[indx].signal[x0 *sr.ippd + y0]);
+                mask=dem->mask[x0 *sr.ippd + y0];
+                loss=(dem->signal[x0 *sr.ippd + y0]);
                 cityorcounty=0;
                 
                 match=255;
@@ -469,9 +492,9 @@ void Image::WriteImageLR(Region &region)
                     /* Text Labels: Red or otherwise */
                     
                     if (red>=180 && green<=75 && blue<=75 && loss!=0)
-                        fprintf(fd,"%c%c%c",255^red,255^green,255^blue);
+                        pixel=RGB(255^red,255^green,255^blue);
                     else
-                        fprintf(fd,"%c%c%c",255,0,0);
+                        pixel=COLOR_RED;
                     
                     cityorcounty=1;
                 }
@@ -480,7 +503,7 @@ void Image::WriteImageLR(Region &region)
                 {
                     /* County Boundaries: Black */
                     
-                    fprintf(fd,"%c%c%c",0,0,0);
+                    pixel=COLOR_BLACK;
                     
                     cityorcounty=1;
                 }
@@ -490,17 +513,17 @@ void Image::WriteImageLR(Region &region)
                     if (loss==0 || (sr.contour_threshold!=0 && loss>abs(sr.contour_threshold)))
                     {
                         if (sr.ngs)  /* No terrain */
-                            fprintf(fd,"%c%c%c",255,255,255);
+                            pixel=COLOR_WHITE;
                         else
                         {
                             /* Display land or sea elevation */
                             
-                            if (em.dem[indx].data[x0 *sr.ippd + y0]==0)
-                                fprintf(fd,"%c%c%c",0,0,170);
+                            if (dem->data[x0 *sr.ippd + y0]==0)
+                                pixel=COLOR_MEDIUMBLUE;
                             else
                             {
-                                terrain=(unsigned)(0.5+pow((double)(em.dem[indx].data[x0 *sr.ippd + y0]-em.min_elevation),one_over_gamma)*conversion);
-                                fprintf(fd,"%c%c%c",terrain,terrain,terrain);
+                                terrain=(unsigned)(0.5+pow((double)(dem->data[x0 *sr.ippd + y0]-em.min_elevation),one_over_gamma)*conversion);
+                                pixel=RGB(terrain,terrain,terrain);
                             }
                         }
                     }
@@ -510,17 +533,17 @@ void Image::WriteImageLR(Region &region)
                         /* Plot path loss in color */
                         
                         if (red!=0 || green!=0 || blue!=0)
-                            fprintf(fd,"%c%c%c",red,green,blue);
+                            pixel=RGB(red,green,blue);
                         
                         else  /* terrain / sea-level */
                         {
-                            if (em.dem[indx].data[x0 *sr.ippd + y0]==0)
-                                fprintf(fd,"%c%c%c",0,0,170);
+                            if (dem->data[x0 *sr.ippd + y0]==0)
+                                pixel=COLOR_MEDIUMBLUE;
                             else
                             {
                                 /* Elevation: Greyscale */
-                                terrain=(unsigned)(0.5+pow((double)(em.dem[indx].data[x0 *sr.ippd + y0]-em.min_elevation),one_over_gamma)*conversion);
-                                fprintf(fd,"%c%c%c",terrain,terrain,terrain);
+                                terrain=(unsigned)(0.5+pow((double)(dem->data[x0 *sr.ippd + y0]-em.min_elevation),one_over_gamma)*conversion);
+                                pixel=RGB(terrain,terrain,terrain);
                             }
                         }
                     }
@@ -532,9 +555,13 @@ void Image::WriteImageLR(Region &region)
                 /* We should never get here, but if */
                 /* we do, display the region as black */
                 
-                fprintf(fd,"%c%c%c",0,0,0);
+                pixel=COLOR_BLACK;
             }
+            
+            iw.AppendPixel(pixel);
         }
+        
+        iw.EmitLine();
     }
     
     if (sr.kml==0 && sr.geo==0)
@@ -595,32 +622,39 @@ void Image::WriteImageLR(Region &region)
                 }
                 
                 if (indx>region.levels)
-                    fprintf(fd,"%c%c%c",0,0,0);
+                    pixel=COLOR_BLACK;
                 else
                 {
                     red=region.color[indx][0];
                     green=region.color[indx][1];
                     blue=region.color[indx][2];
                     
-                    fprintf(fd,"%c%c%c",red,green,blue);
+                    pixel=RGB(red,green,blue);
                 }
+                
+                iw.AppendPixel(pixel);
             }
+            
+            iw.EmitLine();
         }
     }
-    
-    fclose(fd);
+        iw.Finish();
+    } catch (const std::exception& e) {
+        std::cerr << "Error writing " << mapfile << ": " << e.what() << std::endl;
+        return;
+    }
     
     
     if (sr.kml)
     {
         /* Write colorkey image file */
         
-        fd=fopen(ckfile.c_str(),"wb");
         
         height=30*region.levels;
         width=100;
         
-        fprintf(fd,"P6\n%u %u\n255\n",width,height);
+        try {
+            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height);
         
         for (y0=0; y0<(int)height; y0++)
         {
@@ -672,19 +706,67 @@ void Image::WriteImageLR(Region &region)
                 }
                 
                 if (indx>region.levels)
-                    fprintf(fd,"%c%c%c",0,0,0);
+                    pixel=COLOR_BLACK;
                 else
                 {
                     red=region.color[indx][0];
                     green=region.color[indx][1];
                     blue=region.color[indx][2];
                     
-                    fprintf(fd,"%c%c%c",red,green,blue);
+                    pixel=RGB(red,green,blue);
                 }
+                
+                iw.AppendPixel(pixel);
             }
+            
+            iw.EmitLine();
         }
         
-        fclose(fd);
+        iw.Finish();
+            
+        } catch (const std::exception& e) {
+            std::cerr << "Error writing " << ckfile << ": " << e.what() << std::endl;
+            return;
+        }
+        
+#if DO_KMZ
+        bool success = false;
+        struct zip_t *zip = zip_open(kmzfile, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w');
+        if (zip) {
+            /* Pack the KML */
+            if (zip_entry_open(zip, kmlfile) == 0) {
+                if (zip_entry_fwrite(zip, kmlfile) == 0) {
+                    success = true;
+                }
+                zip_entry_close(zip);
+            }
+            /* Pack the -ck file */
+            if (zip_entry_open(zip, ckfile) == 0) {
+                if (zip_entry_fwrite(zip, ckfile) == 0) {
+                    success = true;
+                }
+                zip_entry_close(zip);
+            }
+            /* Pack the map image */
+            if (zip_entry_open(zip, mapfile) == 0) {
+                if (zip_entry_fwrite(zip, mapfile) == 0) {
+                    success = true;
+                }
+                zip_entry_close(zip);
+            }
+            zip_close(zip);
+        }
+        
+        if (success) {
+            unlink(mapfile);
+            unlink(kmlfile);
+            unlink(ckfile);
+            fprintf(stdout, "\nKMZ file written to: \"%s\"\n", kmzfile);
+        } else {
+            unlink(kmzfile);
+            fprintf(stdout, "\nCouldn't create KMZ file.\n");
+        }
+#endif
     }
     
     fprintf(stdout,"Done!\n");

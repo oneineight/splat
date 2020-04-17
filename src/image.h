@@ -37,7 +37,7 @@ public:
     
 void WriteImage(ImageType imagetype);
 
-void WriteImageLR(Region &region);
+void WriteImageLR(ImageType imagetype, Region &region);
 
 void WriteImageSS(Region &region);
 

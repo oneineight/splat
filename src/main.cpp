@@ -742,7 +742,7 @@ int main(int argc, const char * argv[])
         
         if (lrp.erp==0.0)
         {
-            image.WriteImageLR(region);
+            image.WriteImageLR(sr.imagetype, region);
         }
         else
         {
@@ -1131,7 +1131,7 @@ int main(int argc, const char * argv[])
         else
         {
             if (lrp.erp==0.0)
-                image.WriteImageLR(region);
+                image.WriteImageLR(sr.imagetype, region);
             else
                 if (sr.dbm)
                     image.WriteImageDBM(region);
