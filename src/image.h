@@ -39,9 +39,9 @@ void WriteImage(ImageType imagetype);
 
 void WriteImageLR(ImageType imagetype, Region &region);
 
-void WriteImageSS(Region &region);
+void WriteImageSS(ImageType imagetype, Region &region);
 
-void WriteImageDBM(Region &region);
+void WriteImageDBM(ImageType imagetype, Region &region);
     
 private:
     

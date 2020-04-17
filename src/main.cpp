@@ -747,9 +747,9 @@ int main(int argc, const char * argv[])
         else
         {
             if (sr.dbm)
-                image.WriteImageDBM(region);
+                image.WriteImageDBM(sr.imagetype, region);
             else
-                image.WriteImageSS(region);
+                image.WriteImageSS(sr.imagetype, region);
         }
         
         exit(0);
@@ -1134,9 +1134,9 @@ int main(int argc, const char * argv[])
                 image.WriteImageLR(sr.imagetype, region);
             else
                 if (sr.dbm)
-                    image.WriteImageDBM(region);
+                    image.WriteImageDBM(sr.imagetype, region);
                 else
-                    image.WriteImageSS(region);
+                    image.WriteImageSS(sr.imagetype, region);
         }
     }
     
