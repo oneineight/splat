@@ -332,7 +332,7 @@ void Image::WriteImageLR(ImageType imagetype, Region &region)
 #endif
     unsigned int width, height, red, green, blue, terrain=0;
     unsigned int imgheight, imgwidth;
-    unsigned char mask, cityorcounty;
+    unsigned char mask;
     int indx, x, y, z, colorwidth, x0 = 0, y0 = 0, loss, level,
     hundreds, tens, units, match;
     const Dem *dem = NULL;
@@ -445,7 +445,6 @@ void Image::WriteImageLR(ImageType imagetype, Region &region)
             {
                 mask=dem->mask[x0 *sr.ippd + y0];
                 loss=(dem->signal[x0 *sr.ippd + y0]);
-                cityorcounty=0;
                 
                 match=255;
                 
@@ -489,20 +488,14 @@ void Image::WriteImageLR(ImageType imagetype, Region &region)
                         pixel=RGB(255^red,255^green,255^blue);
                     else
                         pixel=COLOR_RED;
-                    
-                    cityorcounty=1;
                 }
-                
                 else if (mask&4)
                 {
                     /* County Boundaries: Black */
                     
                     pixel=COLOR_BLACK;
-                    
-                    cityorcounty=1;
                 }
-                
-                if (cityorcounty==0)
+                else
                 {
                     if (loss==0 || (sr.contour_threshold!=0 && loss>abs(sr.contour_threshold)))
                     {
@@ -783,7 +776,7 @@ void Image::WriteImageSS(ImageType imagetype, Region &region)
     #endif
     unsigned width, height, terrain, red, green, blue;
     unsigned int imgheight, imgwidth;
-    unsigned char mask, cityorcounty;
+    unsigned char mask;
     int indx, x, y, z=1, x0 = 0, y0 = 0, signal, level, hundreds,
     tens, units, match, colorwidth;
     const Dem *dem;
@@ -890,7 +883,6 @@ void Image::WriteImageSS(ImageType imagetype, Region &region)
             {
                 mask=dem->mask[x0 *sr.ippd + y0];
                 signal=(dem->signal[x0 *sr.ippd + y0])-100;
-                cityorcounty=0;
                 
                 match=255;
                 
@@ -934,20 +926,14 @@ void Image::WriteImageSS(ImageType imagetype, Region &region)
                         pixel=RGB(255^red,255^green,255^blue);
                     else
                         pixel=COLOR_RED;
-                    
-                    cityorcounty=1;
                 }
-                
                 else if (mask&4)
                 {
                     /* County Boundaries: Black */
                     
                     pixel=COLOR_BLACK;
-                    
-                    cityorcounty=1;
                 }
-                
-                if (cityorcounty==0)
+                else
                 {
                     if (sr.contour_threshold!=0 && signal<sr.contour_threshold)
                     {
@@ -1261,7 +1247,7 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region)
     string basename, mapfile, geofile, kmlfile, ckfile, suffix;
     unsigned width, height, terrain, red, green, blue;
     unsigned int imgheight, imgwidth;
-    unsigned char mask, cityorcounty;
+    unsigned char mask;
     const Dem *dem;
     int indx, x, y, z=1, x0 = 0, y0 = 0, dBm, level, hundreds,
     tens, units, match, colorwidth;
@@ -1370,7 +1356,6 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region)
             {
                 mask=dem->mask[x0 *sr.ippd + y0];
                 dBm=(dem->signal[x0 *sr.ippd + y0])-200;
-                cityorcounty=0;
                 
                 match=255;
                 
@@ -1379,7 +1364,9 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region)
                 blue=0;
                 
                 if (dBm>=region.level[0])
+                {
                     match=0;
+                }
                 else
                 {
                     for (z=1; (z<region.levels && match==255); z++)
@@ -1397,7 +1384,6 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region)
                         green=(unsigned)Utilities::interpolate(region.color[match][1],region.color[match-1][1],region.level[match],region.level[match-1],dBm);
                         blue=(unsigned)Utilities::interpolate(region.color[match][2],region.color[match-1][2],region.level[match],region.level[match-1],dBm);
                     }
-                    
                     else
                     {
                         red=region.color[match][0];
@@ -1414,30 +1400,30 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region)
                         pixel=RGB(255^red,255^green,255^blue);
                     else
                         pixel=COLOR_RED;
-                    
-                    cityorcounty=1;
                 }
-                
                 else if (mask&4)
                 {
                     /* County Boundaries: Black */
                     pixel=COLOR_BLACK;
-                    
-                    cityorcounty=1;
                 }
-                
-                if (cityorcounty==0)
+                else
                 {
                     if (sr.contour_threshold!=0 && dBm<sr.contour_threshold)
                     {
-                        if (sr.ngs) /* No terrain */
+                        if (sr.ngs)
+                        {
+                            
+                            /* No terrain */
                             pixel=COLOR_WHITE;
+                        }
                         else
                         {
                             /* Display land or sea elevation */
                             
                             if (dem->data[x0 *sr.ippd + y0]==0)
+                            {
                                 pixel=COLOR_MEDIUMBLUE;
+                            }
                             else
                             {
                                 terrain=(unsigned)(0.5+pow((double)(dem->data[x0 *sr.ippd + y0]-em.min_elevation),one_over_gamma)*conversion);
@@ -1445,7 +1431,6 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region)
                             }
                         }
                     }
-                    
                     else
                     {
                         /* Plot signal power level regions in color */
@@ -1472,7 +1457,6 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region)
                     }
                 }
             }
-            
             else
             {
                 /* We should never get here, but if */
