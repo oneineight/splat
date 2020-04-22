@@ -119,7 +119,7 @@ int main(int argc, const char * argv[])
         "       -h filename of terrain height graph to plot\n"
         "       -H filename of normalized terrain height graph to plot\n"
         "       -l filename of path loss graph to plot\n"
-        "       -o filename of topographic map to generate (.ppm)\n"
+        "       -o filename of topographic map to generate (without suffix)\n"
         "       -u filename of user-defined terrain file to import\n"
         "       -d sdf file directory path (overrides path in ~/.splat_path file)\n"
         "       -m earth radius multiplier\n"
@@ -127,11 +127,18 @@ int main(int argc, const char * argv[])
         "       -N do not produce unnecessary site or obstruction reports\n"
         "       -f frequency for Fresnel zone calculation (MHz)\n"
         "       -R modify default range for -c or -L (miles/kilometers)\n"
+        "       -v N verbosity level. Default is 1. Set to 0 to quiet everything.\n"
+        "      -st use a single CPU thread (classic mode)\n"
+        "      -hd Use High Definition mode. Requires 1-deg SDF files.\n"
         "      -sc display smooth rather than quantized contour levels\n"
         "      -db threshold beyond which contours will not be displayed\n"
         "      -nf do not plot Fresnel zones in height plots\n"
         "      -fz Fresnel zone clearance percentage (default = 60)\n"
         "      -gc ground clutter height (feet/meters)\n"
+        "     -jpg when generating maps, create jpgs instead of pngs or ppms\n"
+#ifdef HAVE_LIBPNG
+        "     -ppm when generating maps, create ppms instead of pngs or jpgs\n"
+#endif
         "     -ngs display greyscale topography as white in .ppm files\n"
         "     -erp override ERP in .lrp file (Watts)\n"
         "     -ano name of alphanumeric output file\n"
@@ -142,14 +149,11 @@ int main(int argc, const char * argv[])
         "     -dbm plot signal power level contours rather than field strength\n"
         "     -log copy command line string to this output file\n"
         "   -gpsav preserve gnuplot temporary working files after SPLAT! execution\n"
+        "   -itwom invoke the ITWOM model instead of using Longley-Rice\n"
         "  -metric employ metric rather than imperial units for all user I/O\n"
-        "  -olditm invoke Longley-Rice rather than the default ITWOM model\n"
         "-maxpages [" << sr.maxpages << "] Maximum Analysis Region capability: 1, 4, 9, 16, 25, 36, 49, 64 \n"
-        "      -hd Enable HD mode."
         "\n"
-        "If that flew by too fast, consider piping the output through 'less':\n"
-        "\n\tsplat | less\n\n"
-        "Type 'man splat', or see the documentation for more details.\n\n";
+        "See the documentation for more details.\n\n";
         
         return 1;
     }
@@ -171,6 +175,14 @@ int main(int argc, const char * argv[])
     sr.rx_site.lon=361.0;
     sr.smooth_contours = false;
     sr.earthradius = EARTHRADIUS;
+#ifdef HAVE_LIBPNG
+    sr.imagetype=IMAGETYPE_PNG;
+#else
+    sr.imagetype=IMAGETYPE_PPM;
+#endif
+    sr.multithread = true;
+    sr.verbose = 1;
+    unsigned char imagetype_set = 0;
     
 //    for (x=0; x<4; x++)
 //    {
@@ -213,6 +225,18 @@ int main(int argc, const char * argv[])
                     sr.er_mult=1.0e6;
                 
                 sr.earthradius*=sr.er_mult;
+            }
+        }
+        
+        if (strcmp(argv[x],"-v")==0)
+        {
+            z=x+1;
+
+            if (z<argc && argv[z][0] && argv[z][0]!='-')
+            {
+                int verbose;
+                sscanf(argv[z],"%d",&verbose);
+                sr.verbose = verbose != 0;
             }
         }
         
@@ -330,6 +354,33 @@ int main(int argc, const char * argv[])
             sr.norm = strcmp(argv[x],"-H") == 0 ? true : false;
         }
         
+#ifdef HAVE_LIBPNG
+        if (strcmp(argv[x], "-ppm") == 0) {
+            if (imagetype_set && sr.imagetype != IMAGETYPE_PPM) {
+                fprintf(stdout, "-jpg and -ppm are exclusive options, ignoring -ppm.\n");
+            }
+            else {
+                sr.imagetype = IMAGETYPE_PPM;
+                imagetype_set = 1;
+            }
+        }
+#endif
+#ifdef HAVE_LIBJPEG
+        if (strcmp(argv[x],"-jpg")==0) {
+            if (imagetype_set && sr.imagetype != IMAGETYPE_JPG) {
+#ifdef HAVE_LIBPNG
+                fprintf(stdout,"-jpg and -ppm are exclusive options, ignoring -jpg.\n");
+#else
+                fprintf(stdout,"-jpg and -png are exclusive options, ignoring -jpg.\n");
+#endif
+            } else {
+                sr.imagetype=IMAGETYPE_JPG;
+                imagetype_set = 1;
+            }
+        }
+
+#endif
+        
         if (strcmp(argv[x],"-metric")==0)
             sr.metric = true;
         
@@ -357,8 +408,11 @@ int main(int argc, const char * argv[])
         if (strcmp(argv[x],"-sc")==0)
             sr.smooth_contours = true;
         
-        if (strcmp(argv[x],"-olditm")==0)
-            sr.olditm=true;
+        if (strcmp(argv[x],"-st")==0)
+            sr.multithread=false;
+        
+         if (strcmp(argv[x],"-itwom")==0)
+            sr.olditm=false;
         
         if (strcmp(argv[x],"-N")==0)
         {
