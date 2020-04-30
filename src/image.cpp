@@ -821,7 +821,7 @@ void Image::WriteImageSS(ImageType imagetype, Region &region)
         basename = Utilities::Basename(filename);
     }
     
-    mapfile = basename + ".ppm";
+    mapfile = basename + suffix;
     geofile = basename + ".geo";
     kmlfile = basename + ".kml";
     ckfile  = basename + "-ck" + suffix;
@@ -1292,7 +1292,7 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region)
         basename = Utilities::Basename(filename);
     }
     
-    mapfile = basename + ".ppm";
+    mapfile = basename + suffix;
     geofile = basename + ".geo";
     kmlfile = basename + ".kml";
     ckfile  = basename + "-ck" + suffix;
