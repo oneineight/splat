@@ -103,6 +103,11 @@ int main(int argc, const char * argv[])
     sr.max_range       =  0.0;
     sr.forced_erp      = -1.0;
     sr.fzone_clearance =  0.6;
+#ifndef _WIN32
+    sr.sdf_delimiter = ":";
+#else
+    sr.sdf_delimiter = "_";
+#endif
     
     
     if (argc==1)
@@ -123,7 +128,7 @@ int main(int argc, const char * argv[])
         "       -u filename of user-defined terrain file to import\n"
         "       -d sdf file directory path (overrides path in ~/.splat_path file)\n"
         "       -m earth radius multiplier\n"
-        "       -n do not plot LOS paths in .ppm maps\n"
+        "       -n do not plot LOS paths in maps\n"
         "       -N do not produce unnecessary site or obstruction reports\n"
         "       -f frequency for Fresnel zone calculation (MHz)\n"
         "       -R modify default range for -c or -L (miles/kilometers)\n"
@@ -139,19 +144,20 @@ int main(int argc, const char * argv[])
 #ifdef HAVE_LIBPNG
         "     -ppm when generating maps, create ppms instead of pngs or jpgs\n"
 #endif
-        "     -ngs display greyscale topography as white in .ppm files\n"
+        "     -ngs display greyscale topography as white in images\n"
         "     -erp override ERP in .lrp file (Watts)\n"
         "     -ano name of alphanumeric output file\n"
         "     -ani name of alphanumeric input file\n"
         "     -udt name of user defined terrain input file\n"
         "     -kml generate Google Earth (.kml) compatible output\n"
-        "     -geo generate an Xastir .geo georeference file (with .ppm output)\n"
+        "     -geo generate an Xastir .geo georeference file (with image output)\n"
         "     -dbm plot signal power level contours rather than field strength\n"
         "     -log copy command line string to this output file\n"
         "   -gpsav preserve gnuplot temporary working files after SPLAT! execution\n"
         "   -itwom invoke the ITWOM model instead of using Longley-Rice\n"
         "  -metric employ metric rather than imperial units for all user I/O\n"
         "-maxpages [" << sr.maxpages << "] Maximum Analysis Region capability: 1, 4, 9, 16, 25, 36, 49, 64 \n"
+        "  -sdelim [" << sr.sdf_delimiter << "] Lat and lon delimeter in SDF filenames \n"
         "\n"
         "See the documentation for more details.\n\n";
         
@@ -574,6 +580,16 @@ int main(int argc, const char * argv[])
                     cerr << "\n" << 7 << "*** ERROR: Could not parse maxpages: " << maxpages_str << "\n\n";
                     exit (-1);
                 }
+            }
+        }
+        
+        if (strcmp(argv[x],"-sdelim")==0)
+        {
+            z=x+1;
+            
+            if (z<=y && argv[z][0] && argv[z][0]!='-')
+            {
+                sr.sdf_delimiter = argv[z];
             }
         }
         

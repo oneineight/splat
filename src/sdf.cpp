@@ -28,34 +28,19 @@ using namespace std;
 #define BZBUFFER 65536
 
 
-
-int Sdf::LoadSDF_SDF(const string &name, ElevationMap &em)
+/* This function reads uncompressed SPLAT Data Files (.sdf)
+ containing digital elevation model data into memory.
+ Elevation data, maximum and minimum elevations, and
+ quadrangle limits are stored in the first available
+ em.dem[] structure. */
+int Sdf::LoadSDF_SDF(ElevationMap &em, const string &name, int minlat, int maxlat, int minlon, int maxlon)
 {
-    /* This function reads uncompressed SPLAT Data Files (.sdf)
-     containing digital elevation model data into memory.
-     Elevation data, maximum and minimum elevations, and
-     quadrangle limits are stored in the first available
-     em.dem[] structure. */
-    
-    int	x, y, data, indx, minlat, minlon, maxlat, maxlon;
-    char	found, free_page=0, line[20], sdf_file[255],
-    path_plus_name[512];
+    int	x, y, data, indx;
+    char	found, free_page=0, line[20];
     FILE	*fd;
     
-    for (x=0; name[x]!='.' && name[x]!=0 && x<250; x++)
-        sdf_file[x]=name[x];
-    
-    sdf_file[x]=0;
-    
-    /* Parse filename for minimum latitude and longitude values */
-    
-    sscanf(sdf_file,"%d:%d:%d:%d",&minlat,&maxlat,&minlon,&maxlon);
-    
-    sdf_file[x]='.';
-    sdf_file[x+1]='s';
-    sdf_file[x+2]='d';
-    sdf_file[x+3]='f';
-    sdf_file[x+4]=0;
+    std::string path_plus_name;
+    std::string sdf_file = name + ".sdf";
     
     /* Is it already in memory? */
     
@@ -79,25 +64,22 @@ int Sdf::LoadSDF_SDF(const string &name, ElevationMap &em)
     if (free_page && found==0 && indx>=0 && indx<sr.maxpages)
     {
         /* Search for SDF file in current working directory first */
+        path_plus_name = sdf_file;
         
-        strncpy(path_plus_name,sdf_file,255);
-        
-        fd=fopen(path_plus_name,"rb");
+        fd=fopen(path_plus_name.c_str(),"rb");
         
         if (fd==NULL)
         {
             /* Next, try loading SDF file from path specified
              in $HOME/.splat_path file or by -d argument */
+            path_plus_name = sdf_path + sdf_file;
             
-            strncpy(path_plus_name,sdf_path.c_str(),255);
-            strncat(path_plus_name,sdf_file,254);
-            
-            fd=fopen(path_plus_name,"rb");
+            fd=fopen(path_plus_name.c_str(),"rb");
         }
         
         if (fd!=NULL)
         {
-            fprintf(stdout,"Loading \"%s\" into page %d...",path_plus_name,indx+1);
+            fprintf(stdout,"Loading \"%s\" into page %d...",path_plus_name.c_str(),indx+1);
             fflush(stdout);
             
             fgets(line,19,fd);
@@ -199,37 +181,19 @@ int Sdf::LoadSDF_SDF(const string &name, ElevationMap &em)
         return 0;
 }
 
-int Sdf::LoadSDF_BZ(const string &name, ElevationMap &em)
+/* This function reads .bz2 compressed SPLAT Data Files containing
+ digital elevation model data into memory.  Elevation data,
+ maximum and minimum elevations, and quadrangle limits are
+ stored in the first available em.dem[] structure. */
+int Sdf::LoadSDF_BZ(ElevationMap &em, const string &name, int minlat, int maxlat, int minlon, int maxlon)
 {
-    /* This function reads .bz2 compressed SPLAT Data Files containing
-     digital elevation model data into memory.  Elevation data,
-     maximum and minimum elevations, and quadrangle limits are
-     stored in the first available em.dem[] structure. */
-    
-    int	x, y, data, indx, minlat, minlon, maxlat, maxlon;
-    char	found, free_page=0, sdf_file[255], path_plus_name[512],
-    *string;
+    int	x, y, data, indx;
+    char	found, free_page=0, *string;
     FILE	*fd;
     BZFILE	*bzfd;
-    
-    for (x=0; name[x]!='.' && name[x]!=0 && x<247; x++)
-        sdf_file[x]=name[x];
-    
-    sdf_file[x]=0;
-    
-    /* Parse sdf_file name for minimum latitude and longitude values */
-    
-    sscanf(sdf_file,"%d:%d:%d:%d",&minlat,&maxlat,&minlon,&maxlon);
-    
-    sdf_file[x]='.';
-    sdf_file[x+1]='s';
-    sdf_file[x+2]='d';
-    sdf_file[x+3]='f';
-    sdf_file[x+4]='.';
-    sdf_file[x+5]='b';
-    sdf_file[x+6]='z';
-    sdf_file[x+7]='2';
-    sdf_file[x+8]=0;
+
+    std::string path_plus_name;
+    std::string sdf_file = name + ".sdf.bz2";
     
     /* Is it already in memory? */
     
@@ -254,26 +218,24 @@ int Sdf::LoadSDF_BZ(const string &name, ElevationMap &em)
     {
         /* Search for SDF file in current working directory first */
         
-        strncpy(path_plus_name,sdf_file,255);
+        path_plus_name = sdf_file;
         
-        fd=fopen(path_plus_name,"rb");
+        fd=fopen(path_plus_name.c_str(),"rb");
         bzfd=BZ2_bzReadOpen(&bzerror,fd,0,0,NULL,0);
         
         if (fd==NULL || bzerror!=BZ_OK)
         {
             /* Next, try loading SDF file from path specified
              in $HOME/.splat_path file or by -d argument */
+            path_plus_name = sdf_path + sdf_file;
             
-            strncpy(path_plus_name,sdf_path.c_str(),255);
-            strncat(path_plus_name,sdf_file,254);
-            
-            fd=fopen(path_plus_name,"rb");
+            fd=fopen(path_plus_name.c_str(),"rb");
             bzfd=BZ2_bzReadOpen(&bzerror,fd,0,0,NULL,0);
         }
         
         if (fd!=NULL && bzerror==BZ_OK)
         {
-            fprintf(stdout,"Loading \"%s\" into page %d...",path_plus_name,indx+1);
+            fprintf(stdout,"Loading \"%s\" into page %d...",path_plus_name.c_str(),indx+1);
             fflush(stdout);
             
             sscanf(BZfgets(bzfd,255),"%d",&em.dem[indx].max_west);
@@ -370,38 +332,38 @@ int Sdf::LoadSDF_BZ(const string &name, ElevationMap &em)
         return 0;
 }
 
-char Sdf::LoadSDF(const string &name, ElevationMap &em)
+/* This function loads the requested SDF file from the filesystem.
+ It first tries to invoke the LoadSDF_SDF() function to load an
+ uncompressed SDF file (since uncompressed files load slightly
+ faster).  If that attempt fails, then it tries to load a
+ compressed SDF file by invoking the LoadSDF_BZ() function.
+ If that fails, then we can assume that no elevation data
+ exists for the region requested, and that the region
+ requested must be entirely over water. */
+char Sdf::LoadSDF(ElevationMap &em, int minlat, int maxlat, int minlon, int maxlon)
 {
-    /* This function loads the requested SDF file from the filesystem.
-     It first tries to invoke the LoadSDF_SDF() function to load an
-     uncompressed SDF file (since uncompressed files load slightly
-     faster).  If that attempt fails, then it tries to load a
-     compressed SDF file by invoking the LoadSDF_BZ() function.
-     If that fails, then we can assume that no elevation data
-     exists for the region requested, and that the region
-     requested must be entirely over water. */
-    
-    int	x, y, indx, minlat, minlon, maxlat, maxlon;
+    int	x, y, indx;
     char	found, free_page=0;
     int	return_value=-1;
+    string name = "" + to_string(minlat) + sr.sdf_delimiter +
+                       to_string(maxlat) + sr.sdf_delimiter +
+                       to_string(minlon) + sr.sdf_delimiter +
+                       to_string(maxlon) +
+                       (sr.hd_mode ? "-hd" : "");
     
     /* Try to load an uncompressed SDF first. */
     
-    return_value=LoadSDF_SDF(name, em);
+    return_value=LoadSDF_SDF(em, name, minlat, maxlat, minlon, maxlon);
     
     /* If that fails, try loading a compressed SDF. */
     
     if (return_value==0 || return_value==-1)
-        return_value=LoadSDF_BZ(name, em);
+        return_value=LoadSDF_BZ(em, name, minlat, maxlat, minlon, maxlon);
     
     /* If neither format can be found, then assume the area is water. */
     
     if (return_value==0 || return_value==-1)
     {
-        /* Parse SDF name for minimum latitude and longitude values */
-        
-        sscanf(name.c_str(),"%d:%d:%d:%d",&minlat,&maxlat,&minlon,&maxlon);
-        
         /* Is it already in memory? */
         
         for (indx=0, found=0; indx<sr.maxpages && found==0; indx++)

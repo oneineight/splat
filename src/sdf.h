@@ -29,11 +29,11 @@ public:
     :sdf_path(path),
     sr(sr)
     {}
-int LoadSDF_SDF(const std::string &name, ElevationMap &em);
+int LoadSDF_SDF(ElevationMap &em, const std::string &name, int minlat, int maxlat, int minlon, int maxlon);
 
-int LoadSDF_BZ(const std::string &name, ElevationMap &em);
+int LoadSDF_BZ(ElevationMap &em, const std::string &name, int minlat, int maxlat, int minlon, int maxlon);
 
-char LoadSDF(const std::string &name, ElevationMap &em);
+char LoadSDF(ElevationMap &em, int minlat, int maxlat, int minlon, int maxlon);
     
     
 private:

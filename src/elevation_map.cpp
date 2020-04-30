@@ -1395,7 +1395,6 @@ void ElevationMap::LoadTopoData(int max_lon, int min_lon, int max_lat, int min_l
      to cover the limits of the region specified. */ 
     
     int x, y, width, ymin, ymax;
-    char	string[255];
     
     width=Utilities::ReduceAngle(max_lon-min_lon);
     
@@ -1420,11 +1419,7 @@ void ElevationMap::LoadTopoData(int max_lon, int min_lon, int max_lat, int min_l
                 while (ymax>=360)
                     ymax-=360;
                 
-                if (sr.ippd==3600)
-                    snprintf(string,19,"%d:%d:%d:%d-hd",x, x+1, ymin, ymax);
-                else
-                    snprintf(string,16,"%d:%d:%d:%d",x, x+1, ymin, ymax);
-                sdf.LoadSDF(string, *this);
+                sdf.LoadSDF(*this, x, x+1, ymin, ymax);
             }
     }
     
@@ -1449,11 +1444,7 @@ void ElevationMap::LoadTopoData(int max_lon, int min_lon, int max_lat, int min_l
                 while (ymax>=360)
                     ymax-=360;
                 
-                if (sr.ippd==3600)
-                    snprintf(string,19,"%d:%d:%d:%d-hd",x, x+1, ymin, ymax);
-                else
-                    snprintf(string,16,"%d:%d:%d:%d",x, x+1, ymin, ymax);
-                sdf.LoadSDF(string, *this);
+                sdf.LoadSDF(*this, x, x+1, ymin, ymax);
             }
     }
 }

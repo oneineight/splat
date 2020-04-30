@@ -95,6 +95,7 @@ public:
     bool smooth_contours;
     bool verbose;
     bool multithread;
+    std::string sdf_delimiter;
     ImageType imagetype;
 };
 
