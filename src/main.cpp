@@ -1132,9 +1132,12 @@ int main(int argc, const char * argv[])
     
     if (sr.area_mode && !sr.topomap)
     {
+        // Allocate the antenna pattern on the heap because it has a huge array of floats
+        // that would otherwise be on the stack.
+        PatFile *p_pat = new PatFile();
         for (x=0; x<tx_site.size(); x++)
         {
-            PatFile pat;
+
             if (sr.coverage)
             {
                 em_p->PlotLOSMap(tx_site[x],sr.altitude);
@@ -1146,17 +1149,18 @@ int main(int argc, const char * argv[])
                 char flag = lrp.ReadLRParm(tx_site[x],1, loadPat, patFilename);
                 if (loadPat)
                 {
-                    pat.LoadPAT(patFilename);
+                    p_pat->LoadPAT(patFilename);
                 }
                 
                 if (flag)
                 {
-                    em_p->PlotLRMap(tx_site[x],sr.altitudeLR,ano_filename,pat,lrp);
+                    em_p->PlotLRMap(tx_site[x],sr.altitudeLR,ano_filename,*p_pat,lrp);
                 }
             }
             
             report.SiteReport(tx_site[x]);
         }
+        delete p_pat;
     }
     
     if (sr.map || sr.topomap)

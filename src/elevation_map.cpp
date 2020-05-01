@@ -903,6 +903,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
     FILE *fd=NULL;
     char symbol[4] = {'.', 'o', 'O', 'o' };
 
+
     minwest=sr.dpp+(double)min_west;
     maxnorth=(double)max_north-sr.dpp;
 
@@ -922,15 +923,15 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         else
             fprintf(stdout,"field strength");
     }
-    
+
     fprintf(stdout," contours of \"%s\"\nout to a radius of %.2f %s with an RX antenna at %.2f %s AGL",source.name.c_str(),sr.metric?sr.max_range*KM_PER_MILE:sr.max_range,sr.metric?"kilometers":"miles",sr.metric?altitude*METERS_PER_FOOT:altitude,sr.metric?"meters":"feet");
-    
+
     if (sr.clutter>0.0)
         fprintf(stdout,"\nand %.2f %s of ground sr.clutter",sr.metric?sr.clutter*METERS_PER_FOOT:sr.clutter,sr.metric?"meters":"feet");
-    
+
     if (plo_filename[0]!=0)
         fd=fopen(plo_filename.c_str(),"wb");
-    
+
     if (fd!=NULL)
     {
         /* Write header information to output file */
@@ -967,7 +968,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.alt=altitude;
 
         if (sr.multithread) {
-            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, pat, lrp));
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, std::cref(pat), lrp));
         } else {
             PlotLRPath(source, edge, mask_value,fd, pat, lrp);
         }
@@ -994,7 +995,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
     }
 
     z=(int)(th*(double)(max_north-min_north));
-    
+
     for (lat=maxnorth, x=0, y=0; lat>=(double)min_north; y++, lat=maxnorth-(sr.dpp*(double)y))
     {
         edge.lat=lat;
@@ -1002,7 +1003,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.alt=altitude;
 
         if (sr.multithread) {
-            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, pat, lrp));
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, std::cref(pat), lrp));
         } else {
             PlotLRPath(source,edge,mask_value,fd, pat, lrp);
         }
@@ -1040,7 +1041,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.alt=altitude;
 
         if (sr.multithread) {
-            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, pat, lrp));
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, std::cref(pat), lrp));
         } else {
             PlotLRPath(source,edge,mask_value,fd, pat, lrp);
         }
@@ -1067,7 +1068,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
     }
 
     z=(int)(th*(double)(max_north-min_north));
-    
+
     for (lat=(double)min_north, x=0, y=0; lat<(double)max_north; y++, lat=(double)min_north+(sr.dpp*(double)y))
     {
         edge.lat=lat;
@@ -1075,7 +1076,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude, const string &
         edge.alt=altitude;
 
         if (sr.multithread) {
-            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, pat, lrp));
+            wq.submit(std::bind(&ElevationMap::PlotLRPath, this, source, edge, mask_value, fd, std::cref(pat), lrp));
         } else {
             PlotLRPath(source,edge,mask_value,fd, pat, lrp);
         }

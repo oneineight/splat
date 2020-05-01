@@ -13,7 +13,6 @@
 #include <cstdlib>
 #include <cmath>
 #include <cstring>
-#include <bzlib.h>
 #include "site.h"
 #include "path.h"
 #include "dem.h"
@@ -22,328 +21,163 @@
 #include "lrp.h"
 #include "sdf.h"
 #include "elevation_map.h"
+#include "sdf_bz.h"
 
 using namespace std;
 
-#define BZBUFFER 65536
-
-
-/* This function reads uncompressed SPLAT Data Files (.sdf)
- containing digital elevation model data into memory.
- Elevation data, maximum and minimum elevations, and
- quadrangle limits are stored in the first available
- em.dem[] structure. */
-int Sdf::LoadSDF_SDF(ElevationMap &em, const string &name, int minlat, int maxlat, int minlon, int maxlon)
+/// This function reads a SPLAT Data File containing digital elevation model data into memory.  Elevation data, maximum
+/// and minimum elevations, and quadrangle limits are stored in the first available em.dem[] structure.
+/// The caller must provide minimum and maximum lattitude and longitude values. These determine the DEM this
+/// function picks. If the DEM already exists in the Elevation Map, this function exits. It also exits if there are no
+/// more DEM pages available into which the data may be loaded.
+/// @param em The elevation map into which to load the SDF data
+/// @param name The name of the SDF without the filename suffix
+/// @param minlat The minimum lattitude value
+/// @param maxlat The maximum lattitude value
+/// @param minlon The minimum longitude value
+/// @param maxlon The maximum longitude value
+int Sdf::LoadSDF(ElevationMap &em, const string &name, int minlat, int maxlat, int minlon, int maxlon)
 {
     int	x, y, data, indx;
-    char	found, free_page=0, line[20];
-    FILE	*fd;
+    char *string;
     
     std::string path_plus_name;
-    std::string sdf_file = name + ".sdf";
+    std::string sdf_file = name + suffix;
     
-    /* Is it already in memory? */
+    Dem *dem = FindEmptyDem(em, minlat, maxlat, minlon, maxlon, indx);
     
-    for (indx=0, found=0; indx<sr.maxpages && found==0; indx++)
+    // Early-out if there's no need to load the file
+    if (dem == NULL)
     {
-        if (minlat==em.dem[indx].min_north && minlon==em.dem[indx].min_west && maxlat==em.dem[indx].max_north && maxlon==em.dem[indx].max_west)
-            found=1;
-    }
-    
-    /* Is room available to load it? */
-    
-    if (found==0)
-    {
-        for (indx=0, free_page=0; indx<sr.maxpages && free_page==0; indx++)
-            if (em.dem[indx].max_north==-90)
-                free_page=1;
-    }
-    
-    indx--;
-    
-    if (free_page && found==0 && indx>=0 && indx<sr.maxpages)
-    {
-        /* Search for SDF file in current working directory first */
-        path_plus_name = sdf_file;
-        
-        fd=fopen(path_plus_name.c_str(),"rb");
-        
-        if (fd==NULL)
-        {
-            /* Next, try loading SDF file from path specified
-             in $HOME/.splat_path file or by -d argument */
-            path_plus_name = sdf_path + sdf_file;
-            
-            fd=fopen(path_plus_name.c_str(),"rb");
-        }
-        
-        if (fd!=NULL)
-        {
-            fprintf(stdout,"Loading \"%s\" into page %d...",path_plus_name.c_str(),indx+1);
-            fflush(stdout);
-            
-            fgets(line,19,fd);
-            sscanf(line,"%d",&em.dem[indx].max_west);
-            
-            fgets(line,19,fd);
-            sscanf(line,"%d",&em.dem[indx].min_north);
-            
-            fgets(line,19,fd);
-            sscanf(line,"%d",&em.dem[indx].min_west);
-            
-            fgets(line,19,fd);
-            sscanf(line,"%d",&em.dem[indx].max_north);
-            
-            for (x=0; x<sr.ippd; x++)
-                for (y=0; y<sr.ippd; y++)
-                {
-                    fgets(line,19,fd);
-                    data=atoi(line);
-                    
-                    em.dem[indx].data[x * sr.ippd + y]=data;
-                    em.dem[indx].signal[x * sr.ippd + y]=0;
-                    em.dem[indx].mask[x * sr.ippd + y]=0;
-                    
-                    if (data>em.dem[indx].max_el)
-                        em.dem[indx].max_el=data;
-                    
-                    if (data<em.dem[indx].min_el)
-                        em.dem[indx].min_el=data;
-                }
-            
-            fclose(fd);
-            
-            if (em.dem[indx].min_el<em.min_elevation)
-                em.min_elevation=em.dem[indx].min_el;
-            
-            if (em.dem[indx].max_el>em.max_elevation)
-                em.max_elevation=em.dem[indx].max_el;
-            
-            if (em.max_north==-90)
-                em.max_north=em.dem[indx].max_north;
-            
-            else if (em.dem[indx].max_north>em.max_north)
-                em.max_north=em.dem[indx].max_north;
-            
-            if (em.min_north==90)
-                em.min_north=em.dem[indx].min_north;
-            
-            else if (em.dem[indx].min_north<em.min_north)
-                em.min_north=em.dem[indx].min_north;
-            
-            if (em.max_west==-1)
-                em.max_west=em.dem[indx].max_west;
-            
-            else
-            {
-                if (abs(em.dem[indx].max_west-em.max_west)<180)
-                {
-                    if (em.dem[indx].max_west>em.max_west)
-                        em.max_west=em.dem[indx].max_west;
-                }
-                
-                else
-                {
-                    if (em.dem[indx].max_west<em.max_west)
-                        em.max_west=em.dem[indx].max_west;
-                }
-            }
-            
-            if (em.min_west==360)
-                em.min_west=em.dem[indx].min_west;
-            
-            else
-            {
-                if (fabs((float) em.dem[indx].min_west-em.min_west)<180.0)
-                {
-                    if (em.dem[indx].min_west<em.min_west)
-                        em.min_west=em.dem[indx].min_west;
-                }
-                
-                else
-                {
-                    if (em.dem[indx].min_west>em.min_west)
-                        em.min_west=em.dem[indx].min_west;
-                }
-            }
-            
-            fprintf(stdout," Done!\n");
-            fflush(stdout);
-            
-            return 1;
-        }
-        
-        else
-            return -1;
-    }
-    
-    else
         return 0;
+    }
+    
+    /* Search for SDF file in current working directory first */
+    path_plus_name = sdf_file;
+    if (!OpenFile(path_plus_name))
+    {
+        /* Next, try loading SDF file from path specified
+         in $HOME/.splat_path file or by -d argument */
+        path_plus_name = sdf_path + sdf_file;
+        
+        // Stop here if the file couldn't be opened
+        if (!OpenFile(path_plus_name))
+        {
+            return -1;
+        }
+    }
+
+    fprintf(stdout,"Loading \"%s\" into page %d...",path_plus_name.c_str(),indx+1);
+    fflush(stdout);
+    
+    sscanf(GetString(),"%d",&dem->max_west);
+    sscanf(GetString(),"%d",&dem->min_north);
+    sscanf(GetString(),"%d",&dem->min_west);
+    sscanf(GetString(),"%d",&dem->max_north);
+    
+    for (x=0; x<sr.ippd; x++)
+    {
+        for (y=0; y<sr.ippd; y++)
+        {
+            string=GetString();
+            data=atoi(string);
+            
+            dem->data[x * sr.ippd + y]=data;
+            dem->signal[x * sr.ippd + y]=0;
+            dem->mask[x * sr.ippd + y]=0;
+            
+            if (data > dem->max_el)
+                dem->max_el=data;
+            
+            if (data < dem->min_el)
+                dem->min_el=data;
+        }
+    }
+    
+    CloseFile();
+    
+    if (dem->min_el<em.min_elevation)
+        em.min_elevation=dem->min_el;
+    
+    if (dem->max_el>em.max_elevation)
+        em.max_elevation=dem->max_el;
+    
+    if (em.max_north==-90)
+    {
+        em.max_north=dem->max_north;
+    }
+    else if (dem->max_north>em.max_north)
+    {
+        em.max_north=dem->max_north;
+    }
+    
+    if (em.min_north==90)
+    {
+        em.min_north=dem->min_north;
+    }
+    else if (dem->min_north<em.min_north)
+    {
+        em.min_north=dem->min_north;
+    }
+    
+    if (em.max_west==-1)
+    {
+        em.max_west=dem->max_west;
+    }
+    else
+    {
+        if (abs(dem->max_west-em.max_west)<180)
+        {
+            if (dem->max_west>em.max_west)
+                em.max_west=dem->max_west;
+        }
+        else
+        {
+            if (dem->max_west<em.max_west)
+                em.max_west=dem->max_west;
+        }
+    }
+    
+    if (em.min_west==360)
+    {
+        em.min_west=dem->min_west;
+    }
+    else
+    {
+        if (abs(dem->min_west-em.min_west)<180)
+        {
+            if (dem->min_west<em.min_west)
+                em.min_west=dem->min_west;
+        }
+        else
+        {
+            if (dem->min_west>em.min_west)
+                em.min_west=dem->min_west;
+        }
+    }
+    
+    fprintf(stdout," Done!\n");
+    fflush(stdout);
+    
+    return 1;
 }
 
-/* This function reads .bz2 compressed SPLAT Data Files containing
- digital elevation model data into memory.  Elevation data,
- maximum and minimum elevations, and quadrangle limits are
- stored in the first available em.dem[] structure. */
-int Sdf::LoadSDF_BZ(ElevationMap &em, const string &name, int minlat, int maxlat, int minlon, int maxlon)
-{
-    int	x, y, data, indx;
-    char	found, free_page=0, *string;
-    FILE	*fd;
-    BZFILE	*bzfd;
-
-    std::string path_plus_name;
-    std::string sdf_file = name + ".sdf.bz2";
-    
-    /* Is it already in memory? */
-    
-    for (indx=0, found=0; indx<sr.maxpages && found==0; indx++)
-    {
-        if (minlat==em.dem[indx].min_north && minlon==em.dem[indx].min_west && maxlat==em.dem[indx].max_north && maxlon==em.dem[indx].max_west)
-            found=1;
-    }
-    
-    /* Is room available to load it? */
-    
-    if (found==0)
-    {
-        for (indx=0, free_page=0; indx<sr.maxpages && free_page==0; indx++)
-            if (em.dem[indx].max_north==-90)
-                free_page=1;
-    }
-    
-    indx--;
-    
-    if (free_page && found==0 && indx>=0 && indx<sr.maxpages)
-    {
-        /* Search for SDF file in current working directory first */
-        
-        path_plus_name = sdf_file;
-        
-        fd=fopen(path_plus_name.c_str(),"rb");
-        bzfd=BZ2_bzReadOpen(&bzerror,fd,0,0,NULL,0);
-        
-        if (fd==NULL || bzerror!=BZ_OK)
-        {
-            /* Next, try loading SDF file from path specified
-             in $HOME/.splat_path file or by -d argument */
-            path_plus_name = sdf_path + sdf_file;
-            
-            fd=fopen(path_plus_name.c_str(),"rb");
-            bzfd=BZ2_bzReadOpen(&bzerror,fd,0,0,NULL,0);
-        }
-        
-        if (fd!=NULL && bzerror==BZ_OK)
-        {
-            fprintf(stdout,"Loading \"%s\" into page %d...",path_plus_name.c_str(),indx+1);
-            fflush(stdout);
-            
-            sscanf(BZfgets(bzfd,255),"%d",&em.dem[indx].max_west);
-            sscanf(BZfgets(bzfd,255),"%d",&em.dem[indx].min_north);
-            sscanf(BZfgets(bzfd,255),"%d",&em.dem[indx].min_west);
-            sscanf(BZfgets(bzfd,255),"%d",&em.dem[indx].max_north);
-            
-            for (x=0; x<sr.ippd; x++)
-                for (y=0; y<sr.ippd; y++)
-                {
-                    string=BZfgets(bzfd,20);
-                    data=atoi(string);
-                    
-                    em.dem[indx].data[x * sr.ippd + y]=data;
-                    em.dem[indx].signal[x * sr.ippd + y]=0;
-                    em.dem[indx].mask[x * sr.ippd + y]=0;
-                    
-                    if (data>em.dem[indx].max_el)
-                        em.dem[indx].max_el=data;
-                    
-                    if (data<em.dem[indx].min_el)
-                        em.dem[indx].min_el=data;
-                }
-            
-            fclose(fd);
-            
-            BZ2_bzReadClose(&bzerror,bzfd);
-            
-            if (em.dem[indx].min_el<em.min_elevation)
-                em.min_elevation=em.dem[indx].min_el;
-            
-            if (em.dem[indx].max_el>em.max_elevation)
-                em.max_elevation=em.dem[indx].max_el;
-            
-            if (em.max_north==-90)
-                em.max_north=em.dem[indx].max_north;
-            
-            else if (em.dem[indx].max_north>em.max_north)
-                em.max_north=em.dem[indx].max_north;
-            
-            if (em.min_north==90)
-                em.min_north=em.dem[indx].min_north;
-            
-            else if (em.dem[indx].min_north<em.min_north)
-                em.min_north=em.dem[indx].min_north;
-            
-            if (em.max_west==-1)
-                em.max_west=em.dem[indx].max_west;
-            
-            else
-            {
-                if (abs(em.dem[indx].max_west-em.max_west)<180)
-                {
-                    if (em.dem[indx].max_west>em.max_west)
-                        em.max_west=em.dem[indx].max_west;
-                }
-                
-                else
-                {
-                    if (em.dem[indx].max_west<em.max_west)
-                        em.max_west=em.dem[indx].max_west;
-                }
-            }
-            
-            if (em.min_west==360)
-                em.min_west=em.dem[indx].min_west;
-            
-            else
-            {
-                if (abs(em.dem[indx].min_west-em.min_west)<180)
-                {
-                    if (em.dem[indx].min_west<em.min_west)
-                        em.min_west=em.dem[indx].min_west;
-                }
-                
-                else
-                {
-                    if (em.dem[indx].min_west>em.min_west)
-                        em.min_west=em.dem[indx].min_west;
-                }
-            }
-            
-            fprintf(stdout," Done!\n");
-            fflush(stdout);
-            
-            return 1;
-        }
-        
-        else
-            return -1;
-    }
-    
-    else
-        return 0;
-}
-
-/* This function loads the requested SDF file from the filesystem.
- It first tries to invoke the LoadSDF_SDF() function to load an
- uncompressed SDF file (since uncompressed files load slightly
- faster).  If that attempt fails, then it tries to load a
- compressed SDF file by invoking the LoadSDF_BZ() function.
- If that fails, then we can assume that no elevation data
- exists for the region requested, and that the region
- requested must be entirely over water. */
+/// This function loads the requested SDF file from the filesystem. It first tries to load an uncompressed SDF
+/// file (since uncompressed files load slightly faster).  If that attempt fails, then it tries to load a compressed
+/// SDF file. If that fails, then we can assume that no elevation data exists for the region requested, and that
+/// the region requested must be entirely over water. In addition, this function will load HD SDF files (using
+/// the appropriate filename particle) if Splat! is configured to run in HD mode.
+/// The caller must provide minimum and maximum lattitude and longitude values. These determine the DEM this
+/// function picks. If the DEM already exists in the Elevation Map, this function exits. It also exits if there are no
+/// more DEM pages available into which the data may be loaded.
+/// @param em The elevation map into which to load the SDF data
+/// @param minlat The minimum lattitude value
+/// @param maxlat The maximum lattitude value
+/// @param minlon The minimum longitude value
+/// @param maxlon The maximum longitude value
 char Sdf::LoadSDF(ElevationMap &em, int minlat, int maxlat, int minlon, int maxlon)
 {
     int	x, y, indx;
-    char	found, free_page=0;
     int	return_value=-1;
     string name = "" + to_string(minlat) + sr.sdf_delimiter +
                        to_string(maxlat) + sr.sdf_delimiter +
@@ -351,181 +185,172 @@ char Sdf::LoadSDF(ElevationMap &em, int minlat, int maxlat, int minlon, int maxl
                        to_string(maxlon) +
                        (sr.hd_mode ? "-hd" : "");
     
-    /* Try to load an uncompressed SDF first. */
-    
-    return_value=LoadSDF_SDF(em, name, minlat, maxlat, minlon, maxlon);
-    
-    /* If that fails, try loading a compressed SDF. */
-    
-    if (return_value==0 || return_value==-1)
-        return_value=LoadSDF_BZ(em, name, minlat, maxlat, minlon, maxlon);
-    
-    /* If neither format can be found, then assume the area is water. */
-    
-    if (return_value==0 || return_value==-1)
+    // Try to load an uncompressed SDF first.
+    // Stop here if we successfully loaded the file
+    if (LoadSDF(em, name, minlat, maxlat, minlon, maxlon) == 1)
     {
-        /* Is it already in memory? */
-        
-        for (indx=0, found=0; indx<sr.maxpages && found==0; indx++)
+        return return_value;
+    }
+    
+    // Try loading a compressed SDF.
+    // Stop here if we successfully loaded the file
+    SdfBz sdfBz = SdfBz(sdf_path, sr);
+    if (sdfBz.LoadSDF(em, name, minlat, maxlat, minlon, maxlon) == 1)
+    {
+        return return_value;
+    }
+    
+    
+    // If neither format can be found, then assume the area is water.
+    // Is it already in memory?
+    Dem *dem = FindEmptyDem(em, minlat, maxlat, minlon, maxlon, indx);
+    
+    // Early-out if there's no need to load the data
+    if (dem == NULL)
+    {
+        return 0;
+    }
+    
+    fprintf(stdout,"Region  \"%s\" assumed as sea-level into page %d...",name.c_str(),indx+1);
+    fflush(stdout);
+    
+    dem->max_west=maxlon;
+    dem->min_north=minlat;
+    dem->min_west=minlon;
+    dem->max_north=maxlat;
+    
+    /* Fill DEM with sea-level topography */
+    
+    for (x=0; x<sr.ippd; x++)
+    {
+        for (y=0; y<sr.ippd; y++)
         {
-            if (minlat==em.dem[indx].min_north && minlon==em.dem[indx].min_west && maxlat==em.dem[indx].max_north && maxlon==em.dem[indx].max_west)
-                found=1;
-        }
-        
-        /* Is room available to load it? */
-        
-        if (found==0)
-        {
-            for (indx=0, free_page=0; indx<sr.maxpages && free_page==0; indx++)
-                if (em.dem[indx].max_north==-90)
-                    free_page=1;
-        }
-        
-        indx--;
-        
-        if (free_page && found==0 && indx>=0 && indx<sr.maxpages)
-        {
-            fprintf(stdout,"Region  \"%s\" assumed as sea-level into page %d...",name.c_str(),indx+1);
-            fflush(stdout);
+            dem->data[x * sr.ippd + y]=0;
+            dem->signal[x * sr.ippd + y]=0;
+            dem->mask[x * sr.ippd + y]=0;
             
-            em.dem[indx].max_west=maxlon;
-            em.dem[indx].min_north=minlat;
-            em.dem[indx].min_west=minlon;
-            em.dem[indx].max_north=maxlat;
-            
-            /* Fill DEM with sea-level topography */
-            
-            for (x=0; x<sr.ippd; x++)
-                for (y=0; y<sr.ippd; y++)
-                {
-                    em.dem[indx].data[x * sr.ippd + y]=0;
-                    em.dem[indx].signal[x * sr.ippd + y]=0;
-                    em.dem[indx].mask[x * sr.ippd + y]=0;
-                    
-                    if (em.dem[indx].min_el>0)
-                        em.dem[indx].min_el=0;
-                }
-            
-            if (em.dem[indx].min_el<em.min_elevation)
-                em.min_elevation=em.dem[indx].min_el;
-            
-            if (em.dem[indx].max_el>em.max_elevation)
-                em.max_elevation=em.dem[indx].max_el;
-            
-            if (em.max_north==-90)
-                em.max_north=em.dem[indx].max_north;
-            
-            else if (em.dem[indx].max_north>em.max_north)
-                em.max_north=em.dem[indx].max_north;
-            
-            if (em.min_north==90)
-                em.min_north=em.dem[indx].min_north;
-            
-            else if (em.dem[indx].min_north<em.min_north)
-                em.min_north=em.dem[indx].min_north;
-            
-            if (em.max_west==-1)
-                em.max_west=em.dem[indx].max_west;
-            
-            else
-            {
-                if (abs(em.dem[indx].max_west-em.max_west)<180)
-                {
-                    if (em.dem[indx].max_west>em.max_west)
-                        em.max_west=em.dem[indx].max_west;
-                }
-                
-                else
-                {
-                    if (em.dem[indx].max_west<em.max_west)
-                        em.max_west=em.dem[indx].max_west;
-                }
-            }
-            
-            if (em.min_west==360)
-                em.min_west=em.dem[indx].min_west;
-            
-            else
-            {
-                if (abs(em.dem[indx].min_west-em.min_west)<180)
-                {
-                    if (em.dem[indx].min_west<em.min_west)
-                        em.min_west=em.dem[indx].min_west;
-                }
-                
-                else
-                {
-                    if (em.dem[indx].min_west>em.min_west)
-                        em.min_west=em.dem[indx].min_west;
-                }
-            }
-            
-            fprintf(stdout," Done!\n");
-            fflush(stdout);
-            
-            return_value=1;
+            if (dem->min_el>0)
+                dem->min_el=0;
         }
     }
     
-    return return_value;
-}
-
-char *Sdf::BZfgets(BZFILE *bzfd, unsigned length)
-{
-    /* This function returns at most one less than 'length' number
-     of characters from a bz2 compressed file whose file descriptor
-     is pointed to by *bzfd.  In operation, a buffer is filled with
-     uncompressed data (size = BZBUFFER), which is then parsed
-     and doled out as NULL terminated character strings every time
-     this function is invoked.  A NULL string indicates an EOF
-     or error condition. */
+    if (dem->min_el<em.min_elevation)
+        em.min_elevation=dem->min_el;
     
-    static int x, y, nBuf;
-    static char buffer[BZBUFFER+1], output[BZBUFFER+1];
-    bool done = false, opened = false;
+    if (dem->max_el>em.max_elevation)
+        em.max_elevation=dem->max_el;
     
-    if (opened!=1 && bzerror==BZ_OK)
+    if (em.max_north==-90)
     {
-        /* First time through.  Initialize everything! */
-        
-        x=0;
-        y=0;
-        nBuf=0;
-        opened=1;
-        output[0]=0;
+        em.max_north=dem->max_north;
+    }
+    else if (dem->max_north>em.max_north)
+    {
+        em.max_north=dem->max_north;
     }
     
-    do
+    if (em.min_north==90)
     {
-        if (x==nBuf && bzerror!=BZ_STREAM_END && bzerror==BZ_OK && opened)
+        em.min_north=dem->min_north;
+    }
+    else if (dem->min_north<em.min_north)
+    {
+        em.min_north=dem->min_north;
+    }
+    
+    if (em.max_west==-1)
+    {
+        em.max_west=dem->max_west;
+    }
+    else
+    {
+        if (abs(dem->max_west-em.max_west)<180)
         {
-            /* Uncompress data into a static buffer */
-            
-            nBuf=BZ2_bzRead(&bzerror, bzfd, buffer, BZBUFFER);
-            buffer[nBuf]=0;
-            x=0;
+            if (dem->max_west>em.max_west)
+                em.max_west=dem->max_west;
         }
-        
-        /* Build a string from buffer contents */
-        
-        output[y]=buffer[x];
-        
-        if (output[y]=='\n' || output[y]==0 || y==(int)length-1)
-        {
-            output[y+1]=0;
-            done=1;
-            y=0;
-        }
-        
         else
-            y++;
-        x++;
-        
-    } while (done==0);
+        {
+            if (dem->max_west<em.max_west)
+                em.max_west=dem->max_west;
+        }
+    }
     
-    if (output[0]==0)
-        opened=0;
+    if (em.min_west==360)
+    {
+        em.min_west=dem->min_west;
+    }
+    else
+    {
+        if (abs(dem->min_west-em.min_west)<180)
+        {
+            if (dem->min_west<em.min_west)
+                em.min_west=dem->min_west;
+        }
+        else
+        {
+            if (dem->min_west>em.min_west)
+                em.min_west=dem->min_west;
+        }
+    }
     
-    return (output);
+    fprintf(stdout," Done!\n");
+    fflush(stdout);
+    
+    return 1;
 }
 
+
+/// Returns the DEM matching the given coordinates. Returns NULL if the DEM couldn't be found
+/// or it isn't empty.
+/// @param em The Elevation Map in which to look for an empty DEM
+/// @param minlat The minimum lattitude value
+/// @param maxlat The maximum lattitude value
+/// @param minlon The minimum longitude value
+/// @param maxlon The maximum longitude value
+/// @param indx The index of the found DEM.
+Dem *Sdf::FindEmptyDem(ElevationMap &em, int minlat, int maxlat, int minlon, int maxlon, int &indx)
+{
+    for (int i = 0; i < sr.maxpages; i++)
+    {
+        if (minlat == em.dem[i].min_north &&
+            minlon == em.dem[i].min_west &&
+            maxlat == em.dem[i].max_north &&
+            maxlon == em.dem[i].max_west)
+        {
+            // It already exists. It's not empty
+            return NULL;
+        }
+    }
+    
+    // Is room available to load it?
+    for (int i = 0; i < sr.maxpages; i++)
+    {
+        if (em.dem[i].max_north == -90)
+        {
+            indx = i;
+            return &em.dem[i];
+        }
+    }
+
+    // There wasn't a free page
+    return NULL;
+}
+
+char *Sdf::GetString()
+{
+    return fgets(line, sizeof(line) - 1, fd);
+}
+
+bool Sdf::OpenFile(string path)
+{
+    fd=fopen(path.c_str(),"rb");
+    
+    return (fd != NULL);
+}
+
+void Sdf::CloseFile()
+{
+    fclose(fd);
+    fd = NULL;
+}

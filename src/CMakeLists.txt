@@ -20,6 +20,7 @@ add_executable(splat
     region.cpp
     report.cpp
     sdf.cpp
+    sdf_bz.cpp
     site.cpp
     splat_run.cpp
     udt.cpp

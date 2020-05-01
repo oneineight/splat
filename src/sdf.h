@@ -12,7 +12,6 @@
 #define sdf_h
 
 #include <string>
-#include <bzlib.h>
 
 class ElevationMap;
 class SplatRun;
@@ -21,23 +20,30 @@ class Sdf
 {
 private:
     std::string sdf_path;
-    int	bzerror;
     const SplatRun &sr;
+    char line[20];
+
+protected:
+    std::string suffix;
+    FILE *fd;
     
 public:
     Sdf(const std::string &path, const SplatRun &sr)
     :sdf_path(path),
-    sr(sr)
+    sr(sr),
+    suffix(".sdf")
     {}
-int LoadSDF_SDF(ElevationMap &em, const std::string &name, int minlat, int maxlat, int minlon, int maxlon);
-
-int LoadSDF_BZ(ElevationMap &em, const std::string &name, int minlat, int maxlat, int minlon, int maxlon);
-
-char LoadSDF(ElevationMap &em, int minlat, int maxlat, int minlon, int maxlon);
     
+    int LoadSDF(ElevationMap &em, const std::string &name, int minlat, int maxlat, int minlon, int maxlon);
+    char LoadSDF(ElevationMap &em, int minlat, int maxlat, int minlon, int maxlon);
+        
+protected:
+    virtual bool OpenFile(std::string path);
+    virtual void CloseFile();
+    virtual char *GetString();
     
 private:
-    char *BZfgets(BZFILE *bzfd, unsigned length);
+    Dem *FindEmptyDem(ElevationMap &em, int minlat, int maxlat, int minlon, int maxlon, int &indx);
 };
 
 #endif /* sdf_h */
