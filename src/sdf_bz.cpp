@@ -8,6 +8,7 @@
 * This file is covered by the LICENSE.md file in the root of this project.
 */
 
+#include <iostream>
 #include <string>
 #include <vector>
 #include <cstdlib>
@@ -31,7 +32,7 @@ using namespace std;
 SdfBz::SdfBz(const std::string &path, const SplatRun &sr)
 :Sdf(path, sr)
 {
-    suffix = ".sdf.bz";
+    suffix = ".sdf.bz2";
 }
 
 char *SdfBz::BZfgets(BZFILE *bzfd, unsigned length)
