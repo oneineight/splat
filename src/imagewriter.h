@@ -32,6 +32,8 @@
 
 #pragma once
 
+#include <string>
+
 // XXX HAVE_LIBPNG/HAVE_LIBJPG should be set by the CMakefiles
 #define HAVE_LIBPNG
 
@@ -71,7 +73,7 @@ private:
     ImageWriter(); // private constructor
 
 public:
-    explicit ImageWriter(const char* filename, ImageType imagetype, int width, int height);
+    explicit ImageWriter(const std::string &filename, ImageType imagetype, int width, int height);
     virtual ~ImageWriter();
 
     void AppendPixel(Pixel pixel);

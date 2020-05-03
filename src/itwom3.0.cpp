@@ -42,17 +42,14 @@
  ********************************************************************************/
 
 #include <math.h>
+#include <complex>
 #include <assert.h>
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
+//#include <stdio.h>
+//#include <stdlib.h>
+//#include <stdbool.h>
 
-#ifdef ITM_ELEV_DOUBLE
-#define elev_t double
-#else
-#define elev_t float
-#endif
+#include "itwom3.0.h"
 
 /* 
  * prop_type
@@ -2965,7 +2962,7 @@ Other-  Warning: Some parameters are out of range.
 Results are probably invalid.
 
  *****************************************************************************/
-void point_to_point_ITM(const elev_t elev[], double tht_m, double rht_m, double eps_dielect, double sgm_conductivity, double eno_ns_surfref, double frq_mhz, int radio_climate, int pol, double conf, double rel, double *dbloss, char *strmode, int *errnum)
+void point_to_point_ITM(const elev_t elev[], double tht_m, double rht_m, double eps_dielect, double sgm_conductivity, double eno_ns_surfref, double frq_mhz, int radio_climate, int pol, double conf, double rel, double &dbloss, char *strmode, int &errnum)
 
 {
     prop_type   prop = {0};
@@ -3028,8 +3025,8 @@ void point_to_point_ITM(const elev_t elev[], double tht_m, double rht_m, double 
             strcat(strmode, ", Troposcatter Dominant");
     }
 
-    *dbloss=avar(zr,0.0,zc,&prop,&propv)+fs; /* analysis of variants */
-    *errnum=prop.kwx;
+    dbloss=avar(zr,0.0,zc,&prop,&propv)+fs; /* analysis of variants */
+    errnum=prop.kwx;
 }
 
 
@@ -3087,7 +3084,7 @@ Other-  Warning: Some parameters are out of range.
 Results are probably invalid.
 
  *****************************************************************************/
-void point_to_point(const elev_t elev[], double tht_m, double rht_m, double eps_dielect, double sgm_conductivity, double eno_ns_surfref, double frq_mhz, int radio_climate, int pol, double conf, double rel, double *dbloss, char *strmode, int *errnum)
+void point_to_point(const elev_t elev[], double tht_m, double rht_m, double eps_dielect, double sgm_conductivity, double eno_ns_surfref, double frq_mhz, int radio_climate, int pol, double conf, double rel, double &dbloss, char *strmode, int &errnum)
 {
     prop_type   prop = {0};
     propv_type  propv = {0};
@@ -3168,8 +3165,8 @@ void point_to_point(const elev_t elev[], double tht_m, double rht_m, double eps_
             strcat(strmode, "_Tropo");
     }
 
-    *dbloss=avar(zr,0.0,zc,&prop,&propv)+fs;
-    *errnum=prop.kwx;
+    dbloss=avar(zr,0.0,zc,&prop,&propv)+fs;
+    errnum=prop.kwx;
 }
 
 
