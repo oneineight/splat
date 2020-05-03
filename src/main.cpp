@@ -48,7 +48,8 @@ void check_allocation(void *ptr, string name, const SplatRun &sr);
 
 int main(int argc, const char * argv[])
 {
-    int		x, y, z=0, min_lat, min_lon, max_lat, max_lon,
+    size_t		x, y, z=0;
+    int min_lat, min_lon, max_lat, max_lon,
     rxlat, rxlon, txlat, txlon, west_min, west_max,
     north_min, north_max;
     
@@ -238,7 +239,7 @@ int main(int argc, const char * argv[])
         {
             z=x+1;
 
-            if (z<argc && argv[z][0] && argv[z][0]!='-')
+            if (z<(size_t)argc && argv[z][0] && argv[z][0]!='-')
             {
                 int verbose;
                 sscanf(argv[z],"%d",&verbose);
@@ -614,7 +615,7 @@ int main(int argc, const char * argv[])
     {
         if (tx_site[x].lat==91.0 && tx_site[x].lon==361.0)
         {
-            fprintf(stderr,"\n*** ERROR: Transmitter site #%d not found!",x+1);
+            fprintf(stderr,"\n*** ERROR: Transmitter site #%lu not found!",x+1);
             y++;
         }
     }
@@ -1222,7 +1223,7 @@ int main(int argc, const char * argv[])
         // TODO: Should we fail silently if we can't open the logfile. Shouldn't we WARN?
         if (fs)
         {
-            for (x=0; x<argc; x++)
+            for (x=0; x<(size_t)argc; x++)
                 fs << argv[x] << " ";
             
             fs << endl;
