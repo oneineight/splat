@@ -11,39 +11,39 @@
 #ifndef sdf_h
 #define sdf_h
 
+#include "elevation_map.h"
+#include "splat_run.h"
+#include "dem.h"
+
 #include <string>
 
-class ElevationMap;
-class SplatRun;
-
-class Sdf
-{
-private:
+class Sdf {
+  private:
     std::string sdf_path;
     const SplatRun &sr;
     char line[20];
 
-protected:
+  protected:
     std::string suffix;
     FILE *fd;
-    
-public:
+
+  public:
     Sdf(const std::string &path, const SplatRun &sr)
-    :sdf_path(path),
-    sr(sr),
-    suffix(".sdf")
-    {}
-    
-    int LoadSDF(ElevationMap &em, const std::string &name, int minlat, int maxlat, int minlon, int maxlon);
-    char LoadSDF(ElevationMap &em, int minlat, int maxlat, int minlon, int maxlon);
-        
-protected:
+        : sdf_path(path), sr(sr), suffix(".sdf") {}
+
+    int LoadSDF(ElevationMap &em, const std::string &name, int minlat,
+                int maxlat, int minlon, int maxlon);
+    char LoadSDF(ElevationMap &em, int minlat, int maxlat, int minlon,
+                 int maxlon);
+
+  protected:
     virtual bool OpenFile(std::string path);
     virtual void CloseFile();
     virtual char *GetString();
-    
-private:
-    Dem *FindEmptyDem(ElevationMap &em, int minlat, int maxlat, int minlon, int maxlon, int &indx);
+
+  private:
+    Dem *FindEmptyDem(ElevationMap &em, int minlat, int maxlat, int minlon,
+                      int maxlon, int &indx);
 };
 
 #endif /* sdf_h */

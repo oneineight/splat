@@ -1,21 +1,20 @@
 // Simple workqueue loosely adapted from stackexchange
 // https://codereview.stackexchange.com/questions/60363/thread-pool-worker-implementation
 
+#include <cassert>
+#include <deque>
 #include <functional>
 #include <future>
-#include <deque>
-#include <vector>
-#include <cassert>
-#include <thread>
 #include <iostream>
+#include <thread>
+#include <vector>
 
 class WorkQueue {
-public:
-
+  public:
     // Initialize a workqueue with a requested number of workers.
     //
-    // If numWorkers is less than 0, use the number of CPU threads available on the
-    // platform.
+    // If numWorkers is less than 0, use the number of CPU threads available on
+    // the platform.
     //
     explicit WorkQueue(int numWorkers = -1);
 
@@ -23,10 +22,11 @@ public:
     //
     // We own the memory for the worklist after this.
     //
-    // If numWorkers is less than 0, use the number of CPU threads available on the
-    // platform.
+    // If numWorkers is less than 0, use the number of CPU threads available on
+    // the platform.
     //
-    explicit WorkQueue(std::deque<std::function<void()>> &worklist, int numWorkers = -1);
+    explicit WorkQueue(std::deque<std::function<void()>> &worklist,
+                       int numWorkers = -1);
 
     // Stop processing work right away and dispose of threads
     virtual ~WorkQueue();
@@ -41,12 +41,12 @@ public:
 
     void submit(std::function<void()> job, bool blocking = true);
 
-private:
+  private:
     // Thread main loop
     void doWork();
     void joinAll();
 
-private:
+  private:
     std::deque<std::function<void()>> m_work;
     std::vector<std::thread> m_workers;
     std::mutex m_mutex;
@@ -54,10 +54,10 @@ private:
     std::condition_variable m_signalWaiting;
     std::condition_variable m_signalWorkDone;
 
-    std::atomic<bool> m_exit{ false };
-    std::atomic<bool> m_finish_work{ true };  // override m_exit until the work is done
+    std::atomic<bool> m_exit{false};
+    std::atomic<bool> m_finish_work{
+        true}; // override m_exit until the work is done
 
-    void operator=(const WorkQueue&) = delete;
-    WorkQueue(const WorkQueue&) = delete;
+    void operator=(const WorkQueue &) = delete;
+    WorkQueue(const WorkQueue &) = delete;
 };
-

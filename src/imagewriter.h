@@ -2,11 +2,13 @@
  * @file imagewriter.h
  *
  * @brief Helper class for writing images.
- * 
- * Currently this is one-shot; if you can use it to write one image, and then must dispose of it.
  *
- * General usage: 
- *    Instantiate with ImageWriter(const char* filename, ImageType imagetype, int width, int height)
+ * Currently this is one-shot; if you can use it to write one image, and then
+ * must dispose of it.
+ *
+ * General usage:
+ *    Instantiate with ImageWriter(const char* filename, ImageType imagetype,
+ * int width, int height)
  *
  *      filename: full pathname of file on disk to create
  *      imagetype: one of IMAGETYPE_PPM, IMAGETYPE_PNG, or IMAGETYPE_JPG
@@ -15,22 +17,27 @@
  *
  *    This will throw std:invalid_argument if the file can't be created.
  *
- *    Then add pixels to the current image line AppendPixel(Pixel pixel). If you add more than 'width'
- *    pixels (i.e. call it too many times before calling EmitLine()), it will ignore you.
+ *    Then add pixels to the current image line AppendPixel(Pixel pixel). If you
+ * add more than 'width' pixels (i.e. call it too many times before calling
+ * EmitLine()), it will ignore you.
  *
- *    When you've added a line's-worth of data, call EmitLine() to write that line to the file.
+ *    When you've added a line's-worth of data, call EmitLine() to write that
+ * line to the file.
  *
- *    If you call EmitLine() more than 'height' times, the results are undefined. // XXX fixme
+ *    If you call EmitLine() more than 'height' times, the results are
+ * undefined. // XXX fixme
  *
- *    When done, call Finish() to flush everything out to disk and close the file.
- * 
+ *    When done, call Finish() to flush everything out to disk and close the
+ * file.
+ *
  *
  * @author Michel Hoche-Mong
  * Contact: hoche@grok.com
  *
  */
 
-#pragma once
+#ifndef imagewriter_h
+#define imagewriter_h
 
 #include <string>
 
@@ -51,9 +58,9 @@ extern "C" {
 #endif
 
 #ifndef _WIN32
-#define GetRValue(RGBColor) (uint8_t) (RGBColor & 0xff)
-#define GetGValue(RGBColor) (uint8_t) ((((uint32_t)(RGBColor)) >> 8) & 0xff)
-#define GetBValue(RGBColor) (uint8_t) ((((uint32_t)(RGBColor)) >> 16) & 0xff)
+#define GetRValue(RGBColor) (uint8_t)(RGBColor & 0xff)
+#define GetGValue(RGBColor) (uint8_t)((((uint32_t)(RGBColor)) >> 8) & 0xff)
+#define GetBValue(RGBColor) (uint8_t)((((uint32_t)(RGBColor)) >> 16) & 0xff)
 #endif
 
 typedef uint32_t Pixel;
@@ -69,11 +76,12 @@ typedef enum ImageType {
 } ImageType;
 
 class ImageWriter {
-private:
+  private:
     ImageWriter(); // private constructor
 
-public:
-    explicit ImageWriter(const std::string &filename, ImageType imagetype, int width, int height);
+  public:
+    explicit ImageWriter(const std::string &filename, ImageType imagetype,
+                         int width, int height);
     virtual ~ImageWriter();
 
     void AppendPixel(Pixel pixel);
@@ -82,8 +90,8 @@ public:
 
     void Finish();
 
-public:
-    bool m_initialized = false; 
+  public:
+    bool m_initialized = false;
 
     FILE *m_fp = NULL;
     ImageType m_imagetype;
@@ -103,3 +111,5 @@ public:
     struct jpeg_error_mgr m_jerr = {0};
 #endif
 };
+
+#endif /* imagewriter.h */

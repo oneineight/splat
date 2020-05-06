@@ -33,9 +33,8 @@
 
 #define DEG2RAD 1.74532925199e-02
 
-class Utilities
-{
-public:
+class Utilities {
+  public:
     static int interpolate(int y0, int y1, int x0, int x1, int n);
 
     static double arccos(double x, double y);
@@ -45,19 +44,20 @@ public:
     static double LonDiff(double lon1, double lon2);
 
     static std::string dec2dms(double decimal);
-    
+
     static double ReadBearing(const std::string &input);
-    
+
     static std::string PathLeaf(const std::string &path);
-    
+
     static std::string Extension(const std::string &path);
-    
+
     static std::string Basename(const std::string &path);
-    
+
     static std::string::size_type ExtensionIdx(const std::string &path);
-    
-    static std::string DivideExtension(std::string &path, const std::string &default_extension);
-    
+
+    static std::string DivideExtension(std::string &path,
+                                       const std::string &default_extension);
+
     static void Chomp(std::string &str);
 };
 

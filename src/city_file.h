@@ -11,14 +11,13 @@
 #ifndef city_file_h
 #define city_file_h
 
+#include "elevation_map.h"
+
 #include <string>
 
-class ElevationMap;
-
-class CityFile
-{
-public:
-        void LoadCities(const std::string &filename, ElevationMap &em);
+class CityFile {
+  public:
+    void LoadCities(const std::string &filename, ElevationMap &em);
 };
 
-#endif /* city_file_hpp */
+#endif /* city_file_h */

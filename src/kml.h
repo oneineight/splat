@@ -14,16 +14,16 @@
 #include <stdio.h>
 
 #include "elevation_map.h"
-#include "splat_run.h"
 #include "path.h"
+#include "splat_run.h"
 
-class Kml
-{
-private:
+class Kml {
+  private:
     Path path;
     const ElevationMap &em;
     const SplatRun &sr;
-public:
+
+  public:
     Kml(const ElevationMap &em, const SplatRun &sr);
     void WriteKML(const Site &source, const Site &destination);
 };

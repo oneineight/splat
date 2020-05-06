@@ -11,20 +11,18 @@
 #ifndef udt_h
 #define udt_h
 
+#include "splat_run.h"
+#include "elevation_map.h"
+
 #include <string>
 
-class SplatRun;
-class ElevationMap;
-
-class Udt
-{
-private:
+class Udt {
+  private:
     const SplatRun &sr;
-public:
-    Udt(const SplatRun &sr)
-    : sr(sr)
-    {}
-    
+
+  public:
+    Udt(const SplatRun &sr) : sr(sr) {}
+
     void LoadUDT(const std::string &filename, ElevationMap &em);
 };
 

@@ -11,29 +11,24 @@
 #ifndef anf_h
 #define anf_h
 
+#include "splat_run.h"
+#include "lrp.h"
+#include "sdf.h"
+#include "elevation_map.h"
+
 #include <string>
 
-class Sdf;
-class Lrp;
-
-
-
-class Anf
-{
-private:
+class Anf {
+  private:
     const Lrp &lrp;
     const SplatRun &sr;
-    
-public:
-    
+
+  public:
     /// <#Description#>
     /// @param lrp <#lrp description#>
     /// @param sr <#sr description#>
-    Anf(const Lrp &lrp, const SplatRun &sr)
-    :lrp(lrp),
-    sr(sr)
-    {}
-    
+    Anf(const Lrp &lrp, const SplatRun &sr) : lrp(lrp), sr(sr) {}
+
     int LoadANO(const std::string &filename, Sdf &sdf, ElevationMap &em);
 };
 

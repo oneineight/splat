@@ -13,9 +13,8 @@
 
 #include <vector>
 
-class Dem
-{
-public:
+class Dem {
+  public:
     int min_north;
     int max_north;
     int min_west;
@@ -25,20 +24,14 @@ public:
     std::vector<short> data;
     std::vector<unsigned char> mask;
     std::vector<unsigned char> signal;
-    
-public:
+
+  public:
     Dem(int size)
-    : min_north(0),
-    max_north(0),
-    min_west(0),
-    max_west(0),
-    max_el(0),
-    min_el(0),
-    data(std::vector<short>(size * size)),
-    mask(std::vector<unsigned char>(size * size)),
-    signal(std::vector<unsigned char>(size * size))
-    {}
-    
+        : min_north(0), max_north(0), min_west(0), max_west(0), max_el(0),
+          min_el(0), data(std::vector<short>(size * size)),
+          mask(std::vector<unsigned char>(size * size)),
+          signal(std::vector<unsigned char>(size * size)) {}
+
     ~Dem();
 };
 

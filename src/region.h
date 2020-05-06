@@ -11,15 +11,14 @@
 #ifndef region_h
 #define region_h
 
-class Site;
+#include "site.h"
 
-class Region
-{
-public:
+class Region {
+  public:
     unsigned char color[32][3];
     int level[32];
     int levels;
-    
+
     void LoadLossColors(const Site &xmtr);
     void LoadDBMColors(const Site &xmtr);
     void LoadSignalColors(const Site &xmtr);

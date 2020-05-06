@@ -11,43 +11,45 @@
 #ifndef image_h
 #define image_h
 
-#include <string>
-#include <vector>
+#include "splat_run.h"
+#include "elevation_map.h"
+#include "site.h"
+#include "region.h"
 #include "imagewriter.h"
 
-class SplatRun;
-class ElevationMap;
-class Site;
-class Region;
+#include <string>
+#include <vector>
 
 class Image {
-private:
+  private:
     const SplatRun &sr;
     const ElevationMap &em;
     std::string &filename;
     const std::vector<Site> &xmtr;
 
-public:
-    Image(const SplatRun &sr, std::string &filename, const std::vector<Site> &xmtr, const ElevationMap &em)
-    : sr(sr),
-    em(em),
-    filename(filename),
-    xmtr(xmtr)
-    {}
-    
-void WriteImage(ImageType imagetype);
+  public:
+    Image(const SplatRun &sr, std::string &filename,
+          const std::vector<Site> &xmtr, const ElevationMap &em)
+        : sr(sr), em(em), filename(filename), xmtr(xmtr) {}
 
-void WriteImageLR(ImageType imagetype, Region &region);
+    void WriteImage(ImageType imagetype);
 
-void WriteImageSS(ImageType imagetype, Region &region);
+    void WriteImageLR(ImageType imagetype, Region &region);
 
-void WriteImageDBM(ImageType imagetype, Region &region);
-    
-private:
-    
-    void WriteKmlForImage(const std::string &groundOverlayName, const std::string &description, bool writeScreenOverlay, const std::string &kmlfile, const std::string &mapfile, double north, double south, double east, double west, const std::string &ckfile);
-    static void WriteGeo(const std::string &geofile, const std::string &mapfile, double north, double south, double east, double west, unsigned int width, unsigned int height);
+    void WriteImageSS(ImageType imagetype, Region &region);
 
+    void WriteImageDBM(ImageType imagetype, Region &region);
+
+  private:
+    void WriteKmlForImage(const std::string &groundOverlayName,
+                          const std::string &description,
+                          bool writeScreenOverlay, const std::string &kmlfile,
+                          const std::string &mapfile, double north,
+                          double south, double east, double west,
+                          const std::string &ckfile);
+    static void WriteGeo(const std::string &geofile, const std::string &mapfile,
+                         double north, double south, double east, double west,
+                         unsigned int width, unsigned int height);
 };
 
 #endif /* image_h */

@@ -16,24 +16,23 @@
 /**
  Represents a site (a location having a lattitude, longitude, and altitude).
  */
-class Site
-{
-public:
+class Site {
+  public:
     double lat;
     double lon;
     float alt;
     unsigned char amsl_flag;
     std::string name;
     std::string filename;
-    
-public:
+
+  public:
     Site();
     Site(const std::string &filename);
-    
+
     double Distance(const Site &site2) const;
-    
+
     double Azimuth(const Site &destination) const;
-    
+
     /**
      Populates the Site by loading a QTH file.
 
@@ -41,6 +40,5 @@ public:
      */
     void LoadQTH(const std::string &filename);
 };
-
 
 #endif /* site_h */

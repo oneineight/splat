@@ -8,9 +8,7 @@
  * This file is covered by the LICENSE.md file in the root of this project.
  */
 
-#include <vector>
 #include "dem.h"
+#include <vector>
 
-Dem::~Dem()
-{
-}
+Dem::~Dem() {}

@@ -11,31 +11,31 @@
 #ifndef lrp_h
 #define lrp_h
 
+#include "site.h"
+
 #include <string>
 
-class Lrp
-{
-private:
-     double forced_erp;
+class Lrp {
+  private:
+    double forced_erp;
     double forced_freq;
-    
-public:
+
+  public:
     Lrp(double forced_erp, double forced_freq)
-    :forced_erp(forced_erp),
-    forced_freq(forced_freq)
-    {}
-    
+        : forced_erp(forced_erp), forced_freq(forced_freq) {}
+
     double eps_dielect;
-        double sgm_conductivity;
-        double eno_ns_surfref;
-        double frq_mhz;
-        double conf;
-        double rel;
-        double erp;
-        int radio_climate;
-        int pol;
-    
-    char ReadLRParm(const Site &txsite, char forced_read, bool &loadPat, std::string &filename);
+    double sgm_conductivity;
+    double eno_ns_surfref;
+    double frq_mhz;
+    double conf;
+    double rel;
+    double erp;
+    int radio_climate;
+    int pol;
+
+    char ReadLRParm(const Site &txsite, char forced_read, bool &loadPat,
+                    std::string &filename);
 };
 
 #endif /* lrp_h */

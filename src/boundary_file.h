@@ -11,19 +11,18 @@
 #ifndef boundary_file_h
 #define boundary_file_h
 
+#include "elevation_map.h"
+#include "path.h"
+
 #include <string>
 
-#include "path.h"
-#include "elevation_map.h"
-
-class BoundaryFile
-{
-private:
+class BoundaryFile {
+  private:
     const SplatRun &sr;
-    
-public:
+
+  public:
     BoundaryFile(const SplatRun &sr);
-    
+
     void LoadBoundaries(const std::string &filename, ElevationMap &em);
 };
 

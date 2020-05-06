@@ -8,19 +8,19 @@
  * This file is covered by the LICENSE.md file in the root of this project.
  */
 
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include <bzlib.h>
-#include <vector>
-#include <string>
-#include "site.h"
-#include "path.h"
+#include "splat_run.h"
 #include "dem.h"
 #include "itwom3.0.h"
-#include "splat_run.h"
+#include "path.h"
+#include "site.h"
+#include <bzlib.h>
+#include <ctype.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <string>
+#include <vector>
 
 using namespace std;
 
