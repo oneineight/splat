@@ -1859,7 +1859,7 @@ void Image::WriteKmlForImage(const string &groundOverlayName,
     // these floating point numbers?
     fs.flags(fsOriginalFlags);
 
-    for (int x = 0; x < xmtr.size(); x++) {
+    for (int x = 0; x < (int)xmtr.size(); x++) {
         fs << "     <Placemark>\n"
               "       <name>"
            << xmtr[x].name
