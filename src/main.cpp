@@ -95,8 +95,23 @@ int main(int argc, const char *argv[]) {
     sr.deg_range = 0.0;
     sr.deg_limit = 0.0;
     sr.max_range = 0.0;
+    sr.clutter = 0.0;
     sr.forced_erp = -1.0;
+    sr.forced_freq = 0.0;
     sr.fzone_clearance = 0.6;
+    sr.contour_threshold = 0;
+    sr.rx_site.lat = 91.0;
+    sr.rx_site.lon = 361.0;
+    sr.earthradius = EARTHRADIUS;
+#ifdef HAVE_LIBPNG
+    sr.imagetype = IMAGETYPE_PNG;
+#else
+    sr.imagetype = IMAGETYPE_PPM;
+#endif
+    sr.multithread = true;
+    sr.verbose = 1;
+    unsigned char imagetype_set = 0;
+    
 #ifndef _WIN32
     sr.sdf_delimiter = ":";
 #else
@@ -180,39 +195,9 @@ int main(int argc, const char *argv[]) {
         return 1;
     }
 
-    y = argc - 1;
-
-    sr.olditm = false;
-    sr.kml = false;
-    sr.geo = false;
-    sr.dbm = false;
-    sr.gpsav = false;
-    sr.metric = false;
-    sr.clutter = 0.0;
-    sr.forced_erp = -1.0;
-    sr.forced_freq = 0.0;
-    sr.fzone_clearance = 0.6;
-    sr.contour_threshold = 0;
-    sr.rx_site.lat = 91.0;
-    sr.rx_site.lon = 361.0;
-    sr.smooth_contours = false;
-    sr.earthradius = EARTHRADIUS;
-#ifdef HAVE_LIBPNG
-    sr.imagetype = IMAGETYPE_PNG;
-#else
-    sr.imagetype = IMAGETYPE_PPM;
-#endif
-    sr.multithread = true;
-    sr.verbose = 1;
-    unsigned char imagetype_set = 0;
-
-    //    for (x=0; x<4; x++)
-    //    {
-    //        tx_site[x].lat=91.0;
-    //        tx_site[x].lon=361.0;
-    //    }
 
     /* Scan for command line arguments */
+    y = argc - 1;
 
     for (x = 1; x <= y; x++) {
         if (strcmp(argv[x], "-R") == 0) {
