@@ -11,6 +11,7 @@ add_executable(splat
     gnuplot.cpp
     itwom3.0.cpp
     kml.cpp
+    json.cpp
     lrp.cpp
     main.cpp
     pat_file.cpp

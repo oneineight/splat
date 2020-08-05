@@ -19,6 +19,7 @@
 #include "image.h"
 #include "itwom3.0.h"
 #include "kml.h"
+#include "json.h"
 #include "lrp.h"
 #include "pat_file.h"
 #include "path.h"
@@ -1136,6 +1137,12 @@ int main(int argc, const char *argv[]) {
                 image.WriteImageSS(sr.imagetype, region);
         }
     }
+    
+    // JSON output by der-stefan
+    // This is NOT yet for productive use! I currently test coverage predictions only, no point2point predictions.
+    Json json(*em_p, sr);
+    json.WriteJSON(argc, argv);
+    
 
     if (sr.command_line_log && !logfile.empty()) {
         fstream fs;
