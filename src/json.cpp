@@ -20,37 +20,12 @@
 Json::Json(const ElevationMap &em, const SplatRun &sr)
     : path(sr.arraysize, sr.ppd), em(em), sr(sr) {}
     
-void Json::WriteJSON(int argc, const char** argv) {
+void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
 	int x;
 	char report_name[80];
 	FILE *fd = NULL;
-	
-	/* read in argv[] as an associative array.
-	 * You can now access the list e.g. by args["o"] which will not fail if the argument is not set
-	 * 
-	 *	std::map<std::string, std::string>::iterator i;
-	 *		for (i=args.begin(); i != args.end(); i++) {
-	 *		std::cout << i->first << ": " << i->second << std::endl;
-	 *	}
-	 */
-	typedef std::map<std::string,std::string> arg_t;
-	arg_t args;
-	
-	std::string curr_arg = "";
-	for(int i=0; i<argc; i++) {		// step through argv[] array
-		std::string arg = argv[i];
-		if(arg.find("-") == 0) {	// check if current argument has leading "-"
-			curr_arg = arg.erase(0,1);	// remove leading "-" and save as new array entry
-			args[curr_arg] = "";
-		} else {
-			if (curr_arg != "") {
-				args[curr_arg] = arg;	// if no "-" was found the current argument is considered as a value to the previous argument
-			}
-		}
-	}
-	/* end argv[] reading */
 
-    sprintf(report_name, "test.json");	// TODO: file name!
+    sprintf(report_name, "%s.json", mapfile.c_str());
 
     for (x = 0; report_name[x] != 0; x++)
         if (report_name[x] == 32 || report_name[x] == 17 ||
@@ -62,28 +37,36 @@ void Json::WriteJSON(int argc, const char** argv) {
 
     fprintf(fd, "{\n");
     fprintf(fd, "\t\"splat\": \"%s\",\n", sr.splat_version.c_str());
-    fprintf(fd, "\t\"name\": \"test\",\n");	// TODO: file name!
+    fprintf(fd, "\t\"name\": \"%s\",\n", tx_site.name.c_str());
     fprintf(fd, "\t\"image\": {\n");
-    fprintf(fd, "\t\t\"file\": \"test.png\",\n");	// TODO: image file name!
+    fprintf(fd, "\t\t\"file\": \"%s.png\",\n", mapfile.c_str());
     fprintf(fd, "\t\t\"projection\": \"EPSG:3857\",\n");
-    fprintf(fd, "\t\t\"bounds\": [[],[]],\n");	// TODO: bounds!
-    fprintf(fd, "\t\t\"type\": \"dbm\",\n");
+    fprintf(fd, "\t\t\"bounds\": [[%d, %d],[%d, %d]],\n", em.min_north, 360-em.max_west, em.max_north, 360-em.min_west);
+    fprintf(fd, "\t\t\"unit\": \"dbm\",\n");	//TODO: determine unit (dBm or uV/m)
     fprintf(fd, "\t\t\"colormap\": {\n");
     fprintf(fd, "\t\t\t\"0\": \"#FF0000\",\n");
-    fprintf(fd, "\t\t\t\"-10\": \"#FF8000\",\n");
+    fprintf(fd, "\t\t\t\"-10\": \"#FF8000\",\n");	//TODO: determine colormap
     fprintf(fd, "\t\t},\n\t},\n");
     fprintf(fd, "\t\"qth\": {\n");
-    fprintf(fd, "\t\t\"coordinates\": [],\n");
-    fprintf(fd, "\t\t\"height\": 2\n");
+    fprintf(fd, "\t\t\"coordinates\": [%f, %f],\n", tx_site.lat, 360-tx_site.lon);
+    fprintf(fd, "\t\t\"height\": %f\n", tx_site.alt);
     fprintf(fd, "\t},\n");
     fprintf(fd, "\t\"lrp\": {\n");
-    fprintf(fd, "\t\t\"permittivity\": 15,\n");
+    fprintf(fd, "\t\t\"permittivity\": %f,\n", lrp.eps_dielect);
+    fprintf(fd, "\t\t\"conductivity\": %f,\n", lrp.sgm_conductivity);
+    fprintf(fd, "\t\t\"bending\": %f,\n", lrp.eno_ns_surfref);
+    fprintf(fd, "\t\t\"frequency\": %f,\n", lrp.frq_mhz);
+    fprintf(fd, "\t\t\"climate\": %d,\n", lrp.radio_climate);
+    fprintf(fd, "\t\t\"polarization\": %d,\n", lrp.pol);
+    fprintf(fd, "\t\t\"location_variability\": %f,\n", lrp.conf);
+    fprintf(fd, "\t\t\"time_variability\": %f,\n", lrp.rel);
+    fprintf(fd, "\t\t\"erp\": %f,\n", lrp.erp);
     fprintf(fd, "\t},\n");
     fprintf(fd, "\t\"arguments\": {\n");
     
     std::map<std::string, std::string>::iterator i;
     for (i=args.begin(); i != args.end(); i++) {
-		fprintf(fd, "\t\t\"%s\": \"%s\"\n", i->first.c_str(), i->second.c_str());
+		fprintf(fd, "\t\t\"%s\": \"%s\",\n", i->first.c_str(), i->second.c_str());
 	}
 
     fprintf(fd, "\t}\n");

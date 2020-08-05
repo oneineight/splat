@@ -40,6 +40,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <iostream>
+#include <bits/stdc++.h>
 
 using namespace std;
 
@@ -1140,8 +1142,34 @@ int main(int argc, const char *argv[]) {
     
     // JSON output by der-stefan
     // This is NOT yet for productive use! I currently test coverage predictions only, no point2point predictions.
+    
+    /* read in argv[] as an associative array.
+	 * You can now access the list e.g. by args["o"] which will not fail if the argument is not set
+	 * 
+	 *	std::map<std::string, std::string>::iterator i;
+	 *		for (i=args.begin(); i != args.end(); i++) {
+	 *		std::cout << i->first << ": " << i->second << std::endl;
+	 *	}
+	 */
+	//typedef std::map<std::string,std::string> arg_t;
+	arg_t args;
+	
+	std::string curr_arg = "";
+	for(int i=0; i<argc; i++) {		// step through argv[] array
+		std::string arg = argv[i];
+		if(arg.find("-") == 0) {	// check if current argument has leading "-"
+			curr_arg = arg.erase(0,1);	// remove leading "-" and save as new array entry
+			args[curr_arg] = "";
+		} else {
+			if (curr_arg != "") {
+				args[curr_arg] = arg;	// if no "-" was found the current argument is considered as a value to the previous argument
+			}
+		}
+	}
+	/* end argv[] reading */
+	
     Json json(*em_p, sr);
-    json.WriteJSON(argc, argv);
+    json.WriteJSON(args, tx_site[0], lrp, mapfile);
     
 
     if (sr.command_line_log && !logfile.empty()) {

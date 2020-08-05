@@ -16,6 +16,9 @@
 #include "elevation_map.h"
 #include "path.h"
 #include "splat_run.h"
+#include <bits/stdc++.h>
+
+typedef std::map<std::string,std::string> arg_t;
 
 class Json {
   private:
@@ -25,7 +28,8 @@ class Json {
 
   public:
     Json(const ElevationMap &em, const SplatRun &sr);
-    void WriteJSON(int argc, const char** argv);
+    void WriteJSON(arg_t, Site, Lrp, std::string);
 };
+
 
 #endif /* json_h */
