@@ -41,13 +41,6 @@
 #include <iostream>
 #include <string>
 
-// XXX HAVE_LIBPNG/HAVE_LIBJPG should be set by the CMakefiles
-#define HAVE_LIBPNG
-
-#ifndef _WIN32
-#define HAVE_LIBJPEG
-#endif
-
 #ifdef HAVE_LIBPNG
 #include <png.h>
 #endif
