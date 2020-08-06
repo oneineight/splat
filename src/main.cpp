@@ -67,6 +67,7 @@ int main(int argc, const char *argv[]) {
     sr.maxpages = 16;
     sr.arraysize = -1;
 
+	sr.olditm = true;
     sr.hd_mode = false;
     sr.coverage = false;
     sr.LRmap = false;

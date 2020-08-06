@@ -1328,10 +1328,8 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
         basename = Utilities::Basename(xmtr[0].filename);
         filename = basename + suffix;
     } else {
-        basename = Utilities::Basename(filename);
+        basename = filename; //Utilities::Basename(filename); // TODO: Does not work!
     }
-    
-    fprintf(stdout,"======%s======",basename.c_str());
 
     mapfile = basename + suffix;
     geofile = basename + ".geo";
@@ -1354,7 +1352,7 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
     east = (minwest < 180.0 ? -minwest : 360.0 - em.min_west);
     west = (double)(em.max_west < 180 ? -em.max_west : 360 - em.max_west);
 
-    if (sr.geo && sr.kml == 0) {
+    if (sr.geo) { // && sr.kml == 0) {
         WriteGeo(geofile, mapfile, north, south, east, west, width, height);
     }
 
