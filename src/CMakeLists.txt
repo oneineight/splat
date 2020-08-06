@@ -1,5 +1,6 @@
 find_package(PNG REQUIRED)
 find_package(JPEG REQUIRED)
+find_package(GDAL REQUIRED)
 find_package(Threads REQUIRED)
 include_directories(${PNG_INCLUDE_DIR})
 add_executable(splat
@@ -27,5 +28,5 @@ add_executable(splat
     udt.cpp
     utilities.cpp
     workqueue.cpp)
-target_link_libraries(splat bz2 ${PNG_LIBRARIES} ${JPEG_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(splat bz2 ${PNG_LIBRARIES} ${JPEG_LIBRARIES} ${GDAL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 install(TARGETS splat DESTINATION bin)

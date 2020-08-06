@@ -96,6 +96,11 @@ void Image::WriteImage(ImageType imagetype) {
         suffix = ".jpg";
         break;
 #endif
+#ifdef HAVE_LIBGDAL
+    case IMAGETYPE_GEOTIFF:
+        suffix = ".tif";
+        break;
+#endif
     case IMAGETYPE_PPM:
         suffix = ".ppm";
         break;
