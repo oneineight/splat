@@ -46,21 +46,21 @@ void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
     fprintf(fd, "\t\t\"colormap\": {\n");
     fprintf(fd, "\t\t\t\"0\": \"#FF0000\",\n");
     fprintf(fd, "\t\t\t\"-10\": \"#FF8000\",\n");	//TODO: determine colormap
-    fprintf(fd, "\t\t},\n\t},\n");
+    fprintf(fd, "\t\t}\n\t},\n");
     fprintf(fd, "\t\"qth\": {\n");
     fprintf(fd, "\t\t\"coordinates\": [%f, %f],\n", tx_site.lat, 360-tx_site.lon);
-    fprintf(fd, "\t\t\"height\": %f\n", tx_site.alt);
+    fprintf(fd, "\t\t\"height\": %.2f\n", tx_site.alt);
     fprintf(fd, "\t},\n");
     fprintf(fd, "\t\"lrp\": {\n");
-    fprintf(fd, "\t\t\"permittivity\": %f,\n", lrp.eps_dielect);
-    fprintf(fd, "\t\t\"conductivity\": %f,\n", lrp.sgm_conductivity);
-    fprintf(fd, "\t\t\"bending\": %f,\n", lrp.eno_ns_surfref);
-    fprintf(fd, "\t\t\"frequency\": %f,\n", lrp.frq_mhz);
+    fprintf(fd, "\t\t\"permittivity\": %.1f,\n", lrp.eps_dielect);
+    fprintf(fd, "\t\t\"conductivity\": %.3f,\n", lrp.sgm_conductivity);
+    fprintf(fd, "\t\t\"bending\": %.1f,\n", lrp.eno_ns_surfref);
+    fprintf(fd, "\t\t\"frequency\": %.1f,\n", lrp.frq_mhz);
     fprintf(fd, "\t\t\"climate\": %d,\n", lrp.radio_climate);
     fprintf(fd, "\t\t\"polarization\": %d,\n", lrp.pol);
-    fprintf(fd, "\t\t\"location_variability\": %f,\n", lrp.conf);
-    fprintf(fd, "\t\t\"time_variability\": %f,\n", lrp.rel);
-    fprintf(fd, "\t\t\"erp\": %f,\n", lrp.erp);
+    fprintf(fd, "\t\t\"location_variability\": %.2f,\n", lrp.conf);
+    fprintf(fd, "\t\t\"time_variability\": %.2f,\n", lrp.rel);
+    fprintf(fd, "\t\t\"erp\": %.1f,\n", lrp.erp);
     fprintf(fd, "\t},\n");
     fprintf(fd, "\t\"arguments\": {\n");
     
