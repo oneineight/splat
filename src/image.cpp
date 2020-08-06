@@ -1295,13 +1295,10 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
     Pixel pixel = 0;
 
     one_over_gamma = 1.0 / GAMMA;
-    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation),
-                             one_over_gamma);
+    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation), one_over_gamma);
 
-    width =
-        (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
-    height = (unsigned)(sr.ippd *
-                        Utilities::ReduceAngle(em.max_north - em.min_north));
+    width = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
+    height = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_north - em.min_north));
 
     region.LoadDBMColors(xmtr[0]);
 
@@ -1310,6 +1307,11 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
 #ifdef HAVE_LIBPNG
     case IMAGETYPE_PNG:
         suffix = ".png";
+        break;
+#endif
+#ifdef HAVE_LIBGDAL
+    case IMAGETYPE_GEOTIFF:
+        suffix = ".tif";
         break;
 #endif
 #ifdef HAVE_LIBJPEG
@@ -1328,6 +1330,8 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
     } else {
         basename = Utilities::Basename(filename);
     }
+    
+    fprintf(stdout,"======%s======",basename.c_str());
 
     mapfile = basename + suffix;
     geofile = basename + ".geo";

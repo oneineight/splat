@@ -115,11 +115,11 @@ int main(int argc, const char *argv[]) {
     sr.verbose = 1;
     unsigned char imagetype_set = 0;
     
-#ifndef _WIN32
-    sr.sdf_delimiter = ":";
-#else
+//#ifndef _WIN32
+//    sr.sdf_delimiter = ":";
+//#else
     sr.sdf_delimiter = "_";
-#endif
+//#endif
 
     if (argc == 1) {
         cout
@@ -735,8 +735,7 @@ int main(int argc, const char *argv[]) {
         // TODO: Why only the first TX site?
         bool loadPat;
         string patFilename;
-        lrp.ReadLRParm(tx_site[0], 0, loadPat,
-                       patFilename); /* Get ERP status */
+        lrp.ReadLRParm(tx_site[0], 0, loadPat, patFilename); /* Get ERP status */
         if (loadPat) {
             pat.LoadPAT(patFilename);
         }
