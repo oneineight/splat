@@ -46,7 +46,8 @@
 #include <png.h>
 #endif
 #ifdef HAVE_LIBGDAL
-#include <gdal.h>
+#include <gdal_priv.h>
+#include <cpl_conv.h>
 #endif
 #ifdef HAVE_LIBJPEG
 extern "C" {

@@ -344,11 +344,19 @@ int main(int argc, const char *argv[]) {
 #ifdef HAVE_LIBPNG
         if (strcmp(argv[x], "-ppm") == 0) {
             if (imagetype_set && sr.imagetype != IMAGETYPE_PPM) {
-                fprintf(
-                    stdout,
-                    "-jpg and -ppm are exclusive options, ignoring -ppm.\n");
+                fprintf(stdout, "-jpg and -ppm are exclusive options, ignoring -ppm.\n");
             } else {
                 sr.imagetype = IMAGETYPE_PPM;
+                imagetype_set = 1;
+            }
+        }
+#endif
+#ifdef HAVE_LIBGDAL
+        if (strcmp(argv[x], "-tif") == 0) {
+            if (imagetype_set && sr.imagetype != IMAGETYPE_PPM) {
+                fprintf(stdout, "-tif and -ppm are exclusive options, ignoring -ppm.\n");
+            } else {
+                sr.imagetype = IMAGETYPE_GEOTIFF;
                 imagetype_set = 1;
             }
         }
@@ -357,20 +365,15 @@ int main(int argc, const char *argv[]) {
         if (strcmp(argv[x], "-jpg") == 0) {
             if (imagetype_set && sr.imagetype != IMAGETYPE_JPG) {
 #ifdef HAVE_LIBPNG
-                fprintf(
-                    stdout,
-                    "-jpg and -ppm are exclusive options, ignoring -jpg.\n");
+                fprintf(stdout, "-jpg and -ppm are exclusive options, ignoring -jpg.\n");
 #else
-                fprintf(
-                    stdout,
-                    "-jpg and -png are exclusive options, ignoring -jpg.\n");
+                fprintf(stdout, "-jpg and -png are exclusive options, ignoring -jpg.\n");
 #endif
             } else {
                 sr.imagetype = IMAGETYPE_JPG;
                 imagetype_set = 1;
             }
         }
-
 #endif
 
         if (strcmp(argv[x], "-metric") == 0)

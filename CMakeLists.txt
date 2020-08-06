@@ -13,17 +13,16 @@ if(WIN32)
   set(SHAREDIR ".")
   set(DOCDIR "docs")
 elseif(APPLE)
-  add_definitions(-DHAVE_LIBPNG -DHAVE_LIBJPEG)
+  add_definitions(-DHAVE_LIBPNG -DHAVE_LIBJPEG -DHAVE_LIBGDAL)
   set(SHAREDIR "${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}")
   set(DOCDIR "share/docs/${PROJECT_NAME}")
   set(MANDIR "share/man")
 elseif(UNIX) # Linux, BSD etc
-  add_definitions(-DHAVE_LIBPNG -DHAVE_LIBJPEG)
+  add_definitions(-DHAVE_LIBPNG -DHAVE_LIBJPEG -DHAVE_LIBGDAL)
   set(SHAREDIR "share/${PROJECT_NAME}")
   set(DOCDIR "share/docs/${PROJECT_NAME}")
   set(MANDIR "share/man")
 endif()
-
 
 
 add_subdirectory(src)
