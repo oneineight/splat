@@ -105,7 +105,7 @@ void GnuPlot::GraphTerrain(const Site &source, const Site &destination,
 
         if (x > 0) /* Extension found */
         {
-            for (z = x + 1; z <= y && (z - (x + 1)) < 10; z++) {
+            for (z = x + 1; z <= (int)y && (z - (x + 1)) < 10; z++) {
                 ext[z - (x + 1)] = tolower(name[z]);
                 term[z - (x + 1)] = name[z];
             }
@@ -320,7 +320,7 @@ void GnuPlot::GraphElevation(const Site &source, const Site &destination,
 
         if (x > 0) /* Extension found */
         {
-            for (z = x + 1; z <= y && (z - (x + 1)) < 10; z++) {
+            for (z = x + 1; z <= (int)y && (z - (x + 1)) < 10; z++) {
                 ext[z - (x + 1)] = tolower(name[z]);
                 term[z - (x + 1)] = name[z];
             }
@@ -663,7 +663,7 @@ void GnuPlot::GraphHeight(const Site &source, const Site &destination,
 
         if (x > 0) /* Extension found */
         {
-            for (z = x + 1; z <= y && (z - (x + 1)) < 10; z++) {
+            for (z = x + 1; z <= (int)y && (z - (x + 1)) < 10; z++) {
                 ext[z - (x + 1)] = tolower(name[z]);
                 term[z - (x + 1)] = name[z];
             }

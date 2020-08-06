@@ -153,7 +153,7 @@ double Utilities::ReadBearing(const string &input) {
     string[0] = 0;
 
     size_t length = input.size();
-    for (a = 0, b = 0; a < length && a < 18; a++) {
+    for (a = 0, b = 0; a < (int)length && a < 18; a++) {
         if ((input[a] != 32 && input[a] != '\n') ||
             (input[a] == 32 && input[a + 1] != 32 && input[a + 1] != '\n' &&
              b != 0)) {
@@ -168,7 +168,7 @@ double Utilities::ReadBearing(const string &input) {
 
     length = strlen(string);
 
-    for (a = 0, b = 0; a < length; a++)
+    for (a = 0, b = 0; a < (int)length; a++)
         if (string[a] == 32)
             b++;
 

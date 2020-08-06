@@ -569,7 +569,7 @@ void Report::PathReport(const Site &source, const Site &destination,
             if (y > 19)
                 y = 19;
 
-            for (x = 6; x < y; x++)
+            for (x = 6; x < (int)y; x++)
                 propstring[x - 6] = strmode[x];
 
             propstring[x] = 0;
@@ -647,7 +647,7 @@ void Report::PathReport(const Site &source, const Site &destination,
 
             if (x > 0) /* Extension found */
             {
-                for (z = x + 1; z <= y && (z - (x + 1)) < 10; z++) {
+                for (z = x + 1; z <= (int)y && (z - (x + 1)) < 10; z++) {
                     ext[z - (x + 1)] = tolower(name[z]);
                     term[z - (x + 1)] = name[z];
                 }
