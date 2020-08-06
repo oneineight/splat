@@ -45,6 +45,9 @@
 #ifdef HAVE_LIBPNG
 #include <png.h>
 #endif
+#ifdef HAVE_LIBGDAL
+#include <gdal.h>
+#endif
 #ifdef HAVE_LIBJPEG
 extern "C" {
 #include "jpeglib.h"

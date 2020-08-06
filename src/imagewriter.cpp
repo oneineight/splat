@@ -41,22 +41,6 @@
 #include <iostream>
 #include <string>
 
-#ifdef HAVE_LIBPNG
-#include <png.h>
-#endif
-#ifdef HAVE_LIBJPEG
-extern "C" {
-#include "jpeglib.h"
-}
-#endif
-
-#ifndef _WIN32
-#define GetRValue(RGBColor) (uint8_t)(RGBColor & 0xff)
-#define GetGValue(RGBColor) (uint8_t)((((uint32_t)(RGBColor)) >> 8) & 0xff)
-#define GetBValue(RGBColor) (uint8_t)((((uint32_t)(RGBColor)) >> 16) & 0xff)
-#endif
-
-typedef uint32_t Pixel;
 
 #define DEFAULT_JPEG_QUALITY 90
 
