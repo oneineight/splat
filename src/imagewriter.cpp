@@ -47,14 +47,19 @@
 ImageWriter::ImageWriter(){}; // private constructor
 
 ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
-                         int width, int height)
-    : m_imagetype(imagetype), m_width(width), m_height(height) {
+                         int width, int height, double north, double south, double east, double west)
+    : m_imagetype(imagetype), m_width(width), m_height(height), m_north(north), m_south(south), m_east(east), m_west(west) {
+
+    m_imgline_red = new unsigned char[m_width];
+    m_imgline_green = new unsigned char[m_width];
+    m_imgline_blue = new unsigned char[m_width];
+    m_imgline_alpha = new unsigned char[m_width];
     m_imgline = new unsigned char[3 * m_width];
 
     if ((m_fp = fopen(filename.c_str(), "wb")) == NULL) {
         throw std::invalid_argument("Invalid filename");
     }
-
+	
     // XXX TODO: error handling - throw exceptions
     switch (m_imagetype) {
     default:
@@ -68,9 +73,29 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
                      8, /* 8 bits per color or 24 bits per pixel for RGB */
                      PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
                      PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_BASE);
-        png_set_compression_level(
-            m_png_ptr, 6); /* default is Z_DEFAULT_COMPRESSION; see zlib.h */
+        png_set_compression_level(m_png_ptr, 6); /* default is Z_DEFAULT_COMPRESSION; see zlib.h */
         png_write_info(m_png_ptr, m_info_ptr);
+        break;
+#endif
+#ifdef HAVE_LIBGDAL
+    case IMAGETYPE_GEOTIFF:
+		GDALAllRegister();
+		poDriver = GetGDALDriverManager()->GetDriverByName("GTiff");
+		papszOptions = CSLSetNameValue(papszOptions, "COMPRESS", "DEFLATE");
+		poDstDS = poDriver->Create(filename.c_str(), m_width, m_height, 4, GDT_Byte, papszOptions);
+		
+		adfGeoTransform[0] = m_west;
+		adfGeoTransform[1] = (m_east - m_west) / m_width;
+		adfGeoTransform[2] = 0;
+		adfGeoTransform[3] = m_north;
+		adfGeoTransform[4] = 0;
+		adfGeoTransform[5] = (m_south - m_north) / m_height;
+		poDstDS->SetGeoTransform(adfGeoTransform);
+		
+		oSRS.SetWellKnownGeogCS("EPSG:4326");
+		oSRS.exportToWkt(&pszSRS_WKT);
+		poDstDS->SetProjection(pszSRS_WKT);
+		CPLFree(pszSRS_WKT);
         break;
 #endif
 #ifdef HAVE_LIBJPEG
@@ -83,8 +108,7 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
         m_cinfo.input_components = 3;     /* # of color components per pixel */
         m_cinfo.in_color_space = JCS_RGB; /* colorspace of input image */
         jpeg_set_defaults(&m_cinfo);      /* default compression */
-        jpeg_set_quality(&m_cinfo, DEFAULT_JPEG_QUALITY,
-                         TRUE);              /* possible range is 0-100 */
+        jpeg_set_quality(&m_cinfo, DEFAULT_JPEG_QUALITY, TRUE);	/* possible range is 0-100 */
         jpeg_start_compress(&m_cinfo, TRUE); /* start compressor. */
         break;
 #endif
@@ -113,6 +137,12 @@ void ImageWriter::AppendPixel(Pixel pixel) {
         return;
     }
 
+	m_imgline_red[m_xoffset_rgb] = GetRValue(pixel);
+	m_imgline_green[m_xoffset_rgb] = GetGValue(pixel);
+	m_imgline_blue[m_xoffset_rgb] = GetBValue(pixel);
+	m_imgline_alpha[m_xoffset_rgb] = ((pixel & 0x00FFFFFF) == 0x00FFFFFF) ? 0 : 255;	// Select all white pixel and mask them as transparent
+	m_xoffset_rgb++;
+	
     m_imgline[m_xoffset++] = GetRValue(pixel);
     m_imgline[m_xoffset++] = GetGValue(pixel);
     m_imgline[m_xoffset++] = GetBValue(pixel);
@@ -130,6 +160,15 @@ void ImageWriter::EmitLine() {
         png_write_row(m_png_ptr, (png_bytep)(m_imgline));
         break;
 #endif
+#ifdef HAVE_LIBGDAL
+    case IMAGETYPE_GEOTIFF:
+		poDstDS->GetRasterBand(1)->RasterIO( GF_Write, 0, m_linenumber, m_width, 1, m_imgline_red, m_width, 1, GDT_Byte, 0, 0 );
+		poDstDS->GetRasterBand(2)->RasterIO( GF_Write, 0, m_linenumber, m_width, 1, m_imgline_green, m_width, 1, GDT_Byte, 0, 0 );
+		poDstDS->GetRasterBand(3)->RasterIO( GF_Write, 0, m_linenumber, m_width, 1, m_imgline_blue, m_width, 1, GDT_Byte, 0, 0 );
+		poDstDS->GetRasterBand(4)->RasterIO( GF_Write, 0, m_linenumber, m_width, 1, m_imgline_alpha, m_width, 1, GDT_Byte, 0, 0 );
+		m_linenumber++;
+        break;
+#endif
 #ifdef HAVE_LIBJPEG
     case IMAGETYPE_JPG:
         jpeg_write_scanlines(&m_cinfo, &m_imgline, 1);
@@ -140,6 +179,7 @@ void ImageWriter::EmitLine() {
         break;
     }
     m_xoffset = 0;
+    m_xoffset_rgb = 0;
 };
 
 void ImageWriter::Finish() {
@@ -153,6 +193,12 @@ void ImageWriter::Finish() {
     case IMAGETYPE_PNG:
         png_write_end(m_png_ptr, m_info_ptr);
         png_destroy_write_struct(&m_png_ptr, &m_info_ptr);
+        break;
+#endif
+#ifdef HAVE_LIBGDAL
+    case IMAGETYPE_GEOTIFF:
+		GDALClose( (GDALDatasetH) poDstDS );
+		GDALDestroyDriverManager();
         break;
 #endif
 #ifdef HAVE_LIBJPEG

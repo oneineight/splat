@@ -48,6 +48,7 @@
 #ifdef HAVE_LIBGDAL
 #include <gdal_priv.h>
 #include <cpl_conv.h>
+#include <ogr_spatialref.h>
 #endif
 #ifdef HAVE_LIBJPEG
 extern "C" {
@@ -82,7 +83,7 @@ class ImageWriter {
 
   public:
     explicit ImageWriter(const std::string &filename, ImageType imagetype,
-                         int width, int height);
+                         int width, int height, double north, double south, double east, double west);
     virtual ~ImageWriter();
 
     void AppendPixel(Pixel pixel);
@@ -98,14 +99,33 @@ class ImageWriter {
     ImageType m_imagetype;
     int m_width;
     int m_height;
-
+    int m_north;
+    int m_south;
+    int m_east;
+    int m_west;
+                
     int m_xoffset = 0;
+    int m_xoffset_rgb = 0;
+    int m_linenumber = 0;
 
     unsigned char *m_imgline = NULL;
+    unsigned char *m_imgline_red = NULL;
+    unsigned char *m_imgline_green = NULL;
+    unsigned char *m_imgline_blue = NULL;
+    unsigned char *m_imgline_alpha = NULL;
 
 #ifdef HAVE_LIBPNG
     png_structp m_png_ptr = NULL;
     png_infop m_info_ptr = NULL;
+#endif
+#ifdef HAVE_LIBGDAL
+	GDALDriver *poDriver;
+	GDALDataset *poDstDS;
+	char **papszOptions = NULL;
+	
+	double adfGeoTransform[6];
+	OGRSpatialReference oSRS;
+	char *pszSRS_WKT = NULL;
 #endif
 #ifdef HAVE_LIBJPEG
     struct jpeg_compress_struct m_cinfo = {0};

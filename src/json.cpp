@@ -42,7 +42,7 @@ void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
     fprintf(fd, "\t\t\"file\": \"%s.png\",\n", mapfile.c_str());
     fprintf(fd, "\t\t\"projection\": \"EPSG:3857\",\n");
     fprintf(fd, "\t\t\"bounds\": [[%d, %d],[%d, %d]],\n", em.min_north, 360-em.max_west, em.max_north, 360-em.min_west);
-    fprintf(fd, "\t\t\"unit\": \"dbm\",\n");	//TODO: determine unit (dBm or uV/m)
+    fprintf(fd, "\t\t\"unit\": \"dbm\",\n");	//TODO: determine unit (dBm or dBuV/m)
     fprintf(fd, "\t\t\"colormap\": {\n");
     fprintf(fd, "\t\t\t\"0\": \"#FF0000\",\n");
     fprintf(fd, "\t\t\t\"-10\": \"#FF8000\",\n");	//TODO: determine colormap

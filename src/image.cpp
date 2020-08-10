@@ -30,9 +30,7 @@
 using namespace std;
 
 #ifndef _WIN32
-#define RGB(r, g, b)                                                           \
-    (((uint32_t)(uint8_t)r) | ((uint32_t)((uint8_t)g) << 8) |                  \
-     ((uint32_t)((uint8_t)b) << 16))
+#define RGB(r, g, b) (((uint32_t)(uint8_t)r) | ((uint32_t)((uint8_t)g) << 8) | ((uint32_t)((uint8_t)b) << 16))
 #endif
 
 #define COLOR_RED RGB(255, 0, 0)
@@ -76,13 +74,10 @@ void Image::WriteImage(ImageType imagetype) {
     Pixel pixel = 0;
 
     one_over_gamma = 1.0 / GAMMA;
-    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation),
-                             one_over_gamma);
+    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation), one_over_gamma);
 
-    width =
-        (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
-    height = (unsigned)(sr.ippd *
-                        Utilities::ReduceAngle(em.max_north - em.min_north));
+    width =  (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
+    height = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_north - em.min_north));
 
     switch (imagetype) {
     default:
@@ -136,25 +131,20 @@ void Image::WriteImage(ImageType imagetype) {
     }
 
     if (sr.kml && !sr.geo) {
-        WriteKmlForImage(SplatRun::splat_name + " Line-of-Sight Contour",
-                         "Line-of-Sight Contour", false, kmlfile, mapfile,
-                         north, south, east, west, "");
+        WriteKmlForImage(SplatRun::splat_name + " Line-of-Sight Contour","Line-of-Sight Contour", false, kmlfile, mapfile, north, south, east, west, "");
     }
 
     fd = fopen(mapfile.c_str(), "wb");
 
     fprintf(fd, "P6\n%u %u\n255\n", width, height);
-    fprintf(stdout, "\nWriting \"%s\" (%ux%u pixmap image)... ",
-            mapfile.c_str(), width, height);
+    fprintf(stdout, "\nWriting \"%s\" (%ux%u pixmap image)... ", mapfile.c_str(), width, height);
     fflush(stdout);
 
     try {
-        ImageWriter iw = ImageWriter(mapfile, imagetype, width, height);
+        ImageWriter iw = ImageWriter(mapfile, imagetype, width, height, north, south, east, west);
 
-        for (int y = 0, lat = north; y < (int)height;
-             y++, lat = north - (sr.dpp * (double)y)) {
-            for (int x = 0, lon = em.max_west; x < (int)width;
-                 x++, lon = (double)em.max_west - (sr.dpp * (double)x)) {
+        for (int y = 0, lat = north; y < (int)height; y++, lat = north - (sr.dpp * (double)y)) {
+            for (int x = 0, lon = em.max_west; x < (int)width; x++, lon = (double)em.max_west - (sr.dpp * (double)x)) {
                 if (lon < 0.0)
                     lon += 360.0;
 
@@ -256,15 +246,7 @@ void Image::WriteImage(ImageType imagetype) {
                                     pixel = COLOR_MEDIUMBLUE;
                                 else {
                                     /* Elevation: Greyscale */
-                                    terrain =
-                                        (unsigned)(0.5 +
-                                                   pow((double)(dem->data
-                                                                    [x0 *
-                                                                         sr.ippd +
-                                                                     y0] -
-                                                                em.min_elevation),
-                                                       one_over_gamma) *
-                                                       conversion);
+                                    terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
                                     pixel = RGB(terrain, terrain, terrain);
                                 }
                             }
@@ -285,16 +267,14 @@ void Image::WriteImage(ImageType imagetype) {
         }
         iw.Finish();
     } catch (const std::exception &e) {
-        std::cerr << "Error writing " << mapfile << ": " << e.what()
-                  << std::endl;
+        std::cerr << "Error writing " << mapfile << ": " << e.what() << std::endl;
         return;
     }
 
 #if DO_KMZ
     if (kml) {
         bool success = false;
-        struct zip_t *zip =
-            zip_open(kmzfile, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w');
+        struct zip_t *zip = zip_open(kmzfile, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w');
         if (zip) {
             /* Pack the KML */
             if (zip_entry_open(zip, kmlfile) == 0) {
@@ -345,23 +325,18 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
     unsigned int width, height, red, green, blue, terrain = 0;
     unsigned int imgheight, imgwidth;
     unsigned char mask;
-    int indx, x, y, z, colorwidth, x0 = 0, y0 = 0, loss, level, hundreds, tens,
-                                   units, match;
+    int indx, x, y, z, colorwidth, x0 = 0, y0 = 0, loss, level, hundreds, tens, units, match;
     const Dem *dem = NULL;
-    double lat, lon, conversion, one_over_gamma, north, south, east, west,
-        minwest;
+    double lat, lon, conversion, one_over_gamma, north, south, east, west, minwest;
     FILE *fd;
 
     Pixel pixel = 0;
 
     one_over_gamma = 1.0 / GAMMA;
-    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation),
-                             one_over_gamma);
+    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation), one_over_gamma);
 
-    width =
-        (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
-    height = (unsigned)(sr.ippd *
-                        Utilities::ReduceAngle(em.max_north - em.min_north));
+    width = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
+    height = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_north - em.min_north));
 
     region.LoadLossColors(xmtr[0]);
 
@@ -407,8 +382,7 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
     if (sr.kml || sr.geo)
         south = (double)em.min_north; /* No bottom legend */
     else
-        south = (double)em.min_north -
-                (30.0 / sr.ppd); /* 30 pixels for bottom legend */
+        south = (double)em.min_north - (30.0 / sr.ppd); /* 30 pixels for bottom legend */
 
     east = (minwest < 180.0 ? -minwest : 360.0 - em.min_west);
     west = (double)(em.max_west < 180 ? -em.max_west : 360 - em.max_west);
@@ -418,9 +392,7 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
     }
 
     if (sr.kml && sr.geo == 0) {
-        WriteKmlForImage("SPLAT! Path Loss Overlay",
-                         xmtr[0].name + " Transmitter Path Loss Overlay", true,
-                         kmlfile, mapfile, north, south, east, west, ckfile);
+        WriteKmlForImage("SPLAT! Path Loss Overlay", xmtr[0].name + " Transmitter Path Loss Overlay", true, kmlfile, mapfile, north, south, east, west, ckfile);
     }
 
     fd = fopen(mapfile.c_str(), "wb");
@@ -437,17 +409,15 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
         imgheight = height + 30;
     }
 
-    fprintf(stdout, "\nWriting LR map \"%s\" (%ux%u image)... ",
-            mapfile.c_str(), imgwidth, imgheight);
+    fprintf(stdout, "\nWriting LR map \"%s\" (%ux%u image)... ", mapfile.c_str(), imgwidth, imgheight);
     fflush(stdout);
 
     try {
-        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight);
+        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight, north, south, east, west);
 
         for (y = 0, lat = north; y < (int)height;
              y++, lat = north - (sr.dpp * (double)y)) {
-            for (x = 0, lon = em.max_west; x < (int)width;
-                 x++, lon = em.max_west - (sr.dpp * (double)x)) {
+            for (x = 0, lon = em.max_west; x < (int)width; x++, lon = em.max_west - (sr.dpp * (double)x)) {
                 if (lon < 0.0)
                     lon += 360.0;
 
@@ -467,8 +437,7 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
                         match = 0;
                     else {
                         for (z = 1; (z < region.levels && match == 255); z++) {
-                            if (loss >= region.level[z - 1] &&
-                                loss < region.level[z])
+                            if (loss >= region.level[z - 1] && loss < region.level[z])
                                 match = z;
                         }
                     }
@@ -499,8 +468,7 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
                     if (mask & 2) {
                         /* Text Labels: Red or otherwise */
 
-                        if (red >= 180 && green <= 75 && blue <= 75 &&
-                            loss != 0)
+                        if (red >= 180 && green <= 75 && blue <= 75 && loss != 0)
                             pixel = RGB(255 ^ red, 255 ^ green, 255 ^ blue);
                         else
                             pixel = COLOR_RED;
@@ -509,8 +477,7 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
 
                         pixel = COLOR_BLACK;
                     } else {
-                        if (loss == 0 || (sr.contour_threshold != 0 &&
-                                          loss > abs(sr.contour_threshold))) {
+                        if (loss == 0 || (sr.contour_threshold != 0 && loss > abs(sr.contour_threshold))) {
                             if (sr.ngs) /* No terrain */
                                 pixel = COLOR_WHITE;
                             else {
@@ -519,15 +486,7 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
                                 if (dem->data[x0 * sr.ippd + y0] == 0)
                                     pixel = COLOR_MEDIUMBLUE;
                                 else {
-                                    terrain =
-                                        (unsigned)(0.5 +
-                                                   pow((double)(dem->data
-                                                                    [x0 *
-                                                                         sr.ippd +
-                                                                     y0] -
-                                                                em.min_elevation),
-                                                       one_over_gamma) *
-                                                       conversion);
+                                    terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
                                     pixel = RGB(terrain, terrain, terrain);
                                 }
                             }
@@ -660,7 +619,7 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
         width = 100;
 
         try {
-            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height);
+            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height,0,0,0,0);
 
             for (y0 = 0; y0 < (int)height; y0++) {
                 for (x0 = 0; x0 < (int)width; x0++) {
@@ -890,7 +849,7 @@ void Image::WriteImageSS(ImageType imagetype, Region &region) {
     fflush(stdout);
 
     try {
-        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight);
+        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight, north, south, east, west);
         for (y = 0, lat = north; y < (int)height;
              y++, lat = north - (sr.dpp * (double)y)) {
             for (x = 0, lon = em.max_west; x < (int)width;
@@ -1131,7 +1090,7 @@ void Image::WriteImageSS(ImageType imagetype, Region &region) {
         width = 100;
 
         try {
-            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height);
+            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height,0,0,0,0);
 
             for (y0 = 0; y0 < (int)height; y0++) {
                 for (x0 = 0; x0 < (int)width; x0++) {
@@ -1381,12 +1340,10 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
     fflush(stdout);
 
     try {
-        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight);
+        ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight, north, south, east, west);
 
-        for (y = 0, lat = north; y < (int)height;
-             y++, lat = north - (sr.dpp * (double)y)) {
-            for (x = 0, lon = em.max_west; x < (int)width;
-                 x++, lon = em.max_west - (sr.dpp * (double)x)) {
+        for (y = 0, lat = north; y < (int)height; y++, lat = north - (sr.dpp * (double)y)) {
+            for (x = 0, lon = em.max_west; x < (int)width; x++, lon = em.max_west - (sr.dpp * (double)x)) {
                 if (lon < 0.0)
                     lon += 360.0;
 
@@ -1455,15 +1412,7 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
                                 if (dem->data[x0 * sr.ippd + y0] == 0) {
                                     pixel = COLOR_MEDIUMBLUE;
                                 } else {
-                                    terrain =
-                                        (unsigned)(0.5 +
-                                                   pow((double)(dem->data
-                                                                    [x0 *
-                                                                         sr.ippd +
-                                                                     y0] -
-                                                                em.min_elevation),
-                                                       one_over_gamma) *
-                                                       conversion);
+                                    terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
                                     pixel = RGB(terrain, terrain, terrain);
                                 }
                             }
@@ -1482,15 +1431,7 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
                                         pixel = COLOR_MEDIUMBLUE;
                                     else {
                                         /* Elevation: Greyscale */
-                                        terrain =
-                                            (unsigned)(0.5 +
-                                                       pow((double)(dem->data
-                                                                        [x0 *
-                                                                             sr.ippd +
-                                                                         y0] -
-                                                                    em.min_elevation),
-                                                           one_over_gamma) *
-                                                           conversion);
+                                        terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
                                         pixel = RGB(terrain, terrain, terrain);
                                     }
                                 }
@@ -1646,7 +1587,7 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
         width = 100;
 
         try {
-            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height);
+            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height,0,0,0,0);
 
             for (y0 = 0; y0 < (int)height; y0++) {
                 for (x0 = 0; x0 < (int)width; x0++) {

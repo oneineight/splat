@@ -427,8 +427,7 @@ int main(int argc, const char *argv[]) {
 
             z = x + 1;
 
-            while (z <= y && argv[z][0] && argv[z][0] != '-' &&
-                   tx_site.size() < 30) {
+            while (z <= y && argv[z][0] && argv[z][0] != '-' && tx_site.size() < 30) {
                 string txfile = argv[z];
                 tx_site.push_back(Site(txfile));
                 z++;
