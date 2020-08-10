@@ -85,11 +85,12 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
 		poDstDS = poDriver->Create(filename.c_str(), m_width, m_height, 4, GDT_Byte, papszOptions);
 		
 		adfGeoTransform[0] = m_west;
-		adfGeoTransform[1] = (m_east - m_west) / m_width;
+		adfGeoTransform[1] = (m_east - m_west) / (double) m_width;
 		adfGeoTransform[2] = 0;
 		adfGeoTransform[3] = m_north;
 		adfGeoTransform[4] = 0;
-		adfGeoTransform[5] = (m_south - m_north) / m_height;
+		adfGeoTransform[5] = (m_south - m_north) / (double) m_height;	// FIX BUG!?
+		//fprintf(stdout, "\n\n%f, %f, %f, %f, %f, %f", m_south, m_north, adfGeoTransform[0], adfGeoTransform[1], adfGeoTransform[2], adfGeoTransform[3], adfGeoTransform[4], adfGeoTransform[5]);
 		poDstDS->SetGeoTransform(adfGeoTransform);
 		
 		oSRS.SetWellKnownGeogCS("EPSG:4326");
