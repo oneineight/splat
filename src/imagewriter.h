@@ -99,10 +99,10 @@ class ImageWriter {
     ImageType m_imagetype;
     int m_width;
     int m_height;
-    int m_north;
-    int m_south;
-    int m_east;
-    int m_west;
+    double m_north;
+    double m_south;
+    double m_east;
+    double m_west;
                 
     int m_xoffset = 0;
     int m_xoffset_rgb = 0;
@@ -123,7 +123,8 @@ class ImageWriter {
 	GDALDataset *poDstDS;
 	char **papszOptions = NULL;
 	
-	double adfGeoTransform[6];
+	/* georeferencing of image */
+	double adfGeoTransform[6] = {m_west, (m_east - m_west) / m_width, 0 , m_north, 0, (m_south - m_north) / m_height};
 	OGRSpatialReference oSRS;
 	char *pszSRS_WKT = NULL;
 #endif

@@ -11,7 +11,7 @@
  * int width, int height)
  *
  *      filename: full pathname of file on disk to create
- *      imagetype: one of IMAGETYPE_PPM, IMAGETYPE_PNG, or IMAGETYPE_JPG
+ *      imagetype: one of IMAGETYPE_PPM, IMAGETYPE_PNG, IMAGETYPE_GEOTIFF or IMAGETYPE_JPG
  *      width: width of generated image in pixels
  *      height: height of generated image in pixels
  *
@@ -24,8 +24,7 @@
  *    When you've added a line's-worth of data, call EmitLine() to write that
  * line to the file.
  *
- *    If you call EmitLine() more than 'height' times, the results are
- * undefined. // XXX fixme
+ *    If you call EmitLine() more than 'height' times, it will ignore you.
  *
  *    When done, call Finish() to flush everything out to disk and close the
  * file.
@@ -54,6 +53,7 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
     m_imgline_green = new unsigned char[m_width];
     m_imgline_blue = new unsigned char[m_width];
     m_imgline_alpha = new unsigned char[m_width];
+    
     m_imgline = new unsigned char[3 * m_width];
 
     if ((m_fp = fopen(filename.c_str(), "wb")) == NULL) {
@@ -82,20 +82,11 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
 		GDALAllRegister();
 		poDriver = GetGDALDriverManager()->GetDriverByName("GTiff");
 		papszOptions = CSLSetNameValue(papszOptions, "COMPRESS", "DEFLATE");
-		poDstDS = poDriver->Create(filename.c_str(), m_width, m_height, 4, GDT_Byte, papszOptions);
-		
-		adfGeoTransform[0] = m_west;
-		adfGeoTransform[1] = (m_east - m_west) / (double) m_width;
-		adfGeoTransform[2] = 0;
-		adfGeoTransform[3] = m_north;
-		adfGeoTransform[4] = 0;
-		adfGeoTransform[5] = (m_south - m_north) / (double) m_height;	// FIX BUG!?
-		//fprintf(stdout, "\n\n%f, %f, %f, %f, %f, %f", m_south, m_north, adfGeoTransform[0], adfGeoTransform[1], adfGeoTransform[2], adfGeoTransform[3], adfGeoTransform[4], adfGeoTransform[5]);
-		poDstDS->SetGeoTransform(adfGeoTransform);
-		
+		poDstDS = poDriver->Create(filename.c_str(), m_width, m_height, 4, GDT_Byte, papszOptions);	/* create geotiff file with rgba bands */	
+		poDstDS->SetGeoTransform(adfGeoTransform);	/* georeferencing of image (see .h file) */
 		oSRS.SetWellKnownGeogCS("EPSG:4326");
 		oSRS.exportToWkt(&pszSRS_WKT);
-		poDstDS->SetProjection(pszSRS_WKT);
+		poDstDS->SetProjection(pszSRS_WKT);	/* set projection and spatial reference system*/
 		CPLFree(pszSRS_WKT);
         break;
 #endif
@@ -130,6 +121,7 @@ ImageWriter::~ImageWriter() {
 };
 
 void ImageWriter::AppendPixel(Pixel pixel) {
+	/* populate one image line */
     if (!m_initialized) {
         return;
     }
@@ -138,12 +130,14 @@ void ImageWriter::AppendPixel(Pixel pixel) {
         return;
     }
 
+	/* four distinct lines for red, green, blue and alpha (rgba) for geotiff */
 	m_imgline_red[m_xoffset_rgb] = GetRValue(pixel);
 	m_imgline_green[m_xoffset_rgb] = GetGValue(pixel);
 	m_imgline_blue[m_xoffset_rgb] = GetBValue(pixel);
-	m_imgline_alpha[m_xoffset_rgb] = ((pixel & 0x00FFFFFF) == 0x00FFFFFF) ? 0 : 255;	// Select all white pixel and mask them as transparent
+	m_imgline_alpha[m_xoffset_rgb] = ((pixel & 0x00FFFFFF) == 0x00FFFFFF) ? 0 : 255;	// Select all white pixels and mask them as transparent
 	m_xoffset_rgb++;
 	
+	/* 3-byte array (rgb) for other image types */
     m_imgline[m_xoffset++] = GetRValue(pixel);
     m_imgline[m_xoffset++] = GetGValue(pixel);
     m_imgline[m_xoffset++] = GetBValue(pixel);
@@ -153,6 +147,10 @@ void ImageWriter::EmitLine() {
     if (!m_initialized) {
         return;
     }
+    
+    if (m_linenumber > m_height) {
+		return;
+	}
 
     switch (m_imagetype) {
     default:
@@ -163,11 +161,10 @@ void ImageWriter::EmitLine() {
 #endif
 #ifdef HAVE_LIBGDAL
     case IMAGETYPE_GEOTIFF:
-		poDstDS->GetRasterBand(1)->RasterIO( GF_Write, 0, m_linenumber, m_width, 1, m_imgline_red, m_width, 1, GDT_Byte, 0, 0 );
-		poDstDS->GetRasterBand(2)->RasterIO( GF_Write, 0, m_linenumber, m_width, 1, m_imgline_green, m_width, 1, GDT_Byte, 0, 0 );
-		poDstDS->GetRasterBand(3)->RasterIO( GF_Write, 0, m_linenumber, m_width, 1, m_imgline_blue, m_width, 1, GDT_Byte, 0, 0 );
-		poDstDS->GetRasterBand(4)->RasterIO( GF_Write, 0, m_linenumber, m_width, 1, m_imgline_alpha, m_width, 1, GDT_Byte, 0, 0 );
-		m_linenumber++;
+		poDstDS->GetRasterBand(1)->RasterIO(GF_Write, 0, m_linenumber, m_width, 1, m_imgline_red, m_width, 1, GDT_Byte, 0, 0);
+		poDstDS->GetRasterBand(2)->RasterIO(GF_Write, 0, m_linenumber, m_width, 1, m_imgline_green, m_width, 1, GDT_Byte, 0, 0);
+		poDstDS->GetRasterBand(3)->RasterIO(GF_Write, 0, m_linenumber, m_width, 1, m_imgline_blue, m_width, 1, GDT_Byte, 0, 0);
+		poDstDS->GetRasterBand(4)->RasterIO(GF_Write, 0, m_linenumber, m_width, 1, m_imgline_alpha, m_width, 1, GDT_Byte, 0, 0);
         break;
 #endif
 #ifdef HAVE_LIBJPEG
@@ -181,6 +178,7 @@ void ImageWriter::EmitLine() {
     }
     m_xoffset = 0;
     m_xoffset_rgb = 0;
+    m_linenumber++;
 };
 
 void ImageWriter::Finish() {
