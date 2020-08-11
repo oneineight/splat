@@ -45,7 +45,7 @@ void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
     reportfile << "\t\t\"unit\": \"dbm\",\n";	//TODO: determine unit (dBm or dBuV/m)
     reportfile << "\t\t\"colormap\": {\n";
     reportfile << "\t\t\t\"0\": \"#FF0000\",\n";
-    reportfile << "\t\t\t\"-10\": \"#FF8000\",\n";	//TODO: determine colormap
+    reportfile << "\t\t\t\"-10\": \"#FF8000\"\n";	//TODO: determine colormap
     reportfile << "\t\t}\n\t},\n";
     reportfile << "\t\"qth\": {\n";
     reportfile << "\t\t\"coordinates\": [" << tx_site.lat << ", " << 360-tx_site.lon << "],\n";
@@ -60,17 +60,24 @@ void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
     reportfile << "\t\t\"polarization\": " << lrp.pol << ",\n";
     reportfile << "\t\t\"location_variability\": " << lrp.conf << ",\n";
     reportfile << "\t\t\"time_variability\": " << lrp.rel << ",\n";
-    reportfile << "\t\t\"erp\": " << lrp.erp << ",\n";
+    reportfile << "\t\t\"erp\": " << lrp.erp << "\n";
     reportfile << "\t},\n";
     reportfile << "\t\"arguments\": {\n";
     
     std::map<std::string, std::string>::iterator i;
-    for (i=args.begin(); i != args.end(); i++) {
-		reportfile << "\t\t\"" <<  i->first.c_str() << "\": \"" << i->second.c_str() << "\",\n";
+    int pos = 0;
+    int len = args.size();
+    for (i=args.begin(); i != args.end(); i++, pos++) {
+		reportfile << "\t\t\"" <<  i->first.c_str() << "\": \"" << i->second.c_str() << "\"";
+		if(pos < (len - 1)) {
+			reportfile << ",\n";
+		} else {
+			reportfile << "\n";	// no comma for last array entry
+		}
 	}
 
-    reportfile << "\t},\n";
-    reportfile << "},\n";
+    reportfile << "\t}\n";
+    reportfile << "}\n";
 
 	reportfile.close();
 	
