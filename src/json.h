@@ -11,8 +11,6 @@
 #ifndef json_h
 #define json_h
 
-#include <stdio.h>
-
 #include "elevation_map.h"
 #include "path.h"
 #include "splat_run.h"

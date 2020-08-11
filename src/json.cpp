@@ -15,6 +15,7 @@
 #include "splat_run.h"
 #include "utilities.h"
 #include <iostream>
+#include <fstream>
 #include <bits/stdc++.h>
 
 Json::Json(const ElevationMap &em, const SplatRun &sr)
@@ -23,7 +24,6 @@ Json::Json(const ElevationMap &em, const SplatRun &sr)
 void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
 	int x;
 	char report_name[80];
-	FILE *fd = NULL;
 
     sprintf(report_name, "%s.json", mapfile.c_str());
 
@@ -32,49 +32,49 @@ void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
             report_name[x] == 92 || report_name[x] == 42 ||
             report_name[x] == 47)
             report_name[x] = '_';
-
-    fd = fopen(report_name, "w");
-
-    fprintf(fd, "{\n");
-    fprintf(fd, "\t\"splat\": \"%s\",\n", sr.splat_version.c_str());
-    fprintf(fd, "\t\"name\": \"%s\",\n", tx_site.name.c_str());
-    fprintf(fd, "\t\"image\": {\n");
-    fprintf(fd, "\t\t\"file\": \"%s.png\",\n", mapfile.c_str());
-    fprintf(fd, "\t\t\"projection\": \"EPSG:3857\",\n");
-    fprintf(fd, "\t\t\"bounds\": [[%d, %d],[%d, %d]],\n", em.min_north, 360-em.max_west, em.max_north, 360-em.min_west);
-    fprintf(fd, "\t\t\"unit\": \"dbm\",\n");	//TODO: determine unit (dBm or dBuV/m)
-    fprintf(fd, "\t\t\"colormap\": {\n");
-    fprintf(fd, "\t\t\t\"0\": \"#FF0000\",\n");
-    fprintf(fd, "\t\t\t\"-10\": \"#FF8000\",\n");	//TODO: determine colormap
-    fprintf(fd, "\t\t}\n\t},\n");
-    fprintf(fd, "\t\"qth\": {\n");
-    fprintf(fd, "\t\t\"coordinates\": [%f, %f],\n", tx_site.lat, 360-tx_site.lon);
-    fprintf(fd, "\t\t\"height\": %.2f\n", tx_site.alt);
-    fprintf(fd, "\t},\n");
-    fprintf(fd, "\t\"lrp\": {\n");
-    fprintf(fd, "\t\t\"permittivity\": %.1f,\n", lrp.eps_dielect);
-    fprintf(fd, "\t\t\"conductivity\": %.3f,\n", lrp.sgm_conductivity);
-    fprintf(fd, "\t\t\"bending\": %.1f,\n", lrp.eno_ns_surfref);
-    fprintf(fd, "\t\t\"frequency\": %.1f,\n", lrp.frq_mhz);
-    fprintf(fd, "\t\t\"climate\": %d,\n", lrp.radio_climate);
-    fprintf(fd, "\t\t\"polarization\": %d,\n", lrp.pol);
-    fprintf(fd, "\t\t\"location_variability\": %.2f,\n", lrp.conf);
-    fprintf(fd, "\t\t\"time_variability\": %.2f,\n", lrp.rel);
-    fprintf(fd, "\t\t\"erp\": %.1f,\n", lrp.erp);
-    fprintf(fd, "\t},\n");
-    fprintf(fd, "\t\"arguments\": {\n");
+    
+    std::ofstream reportfile(report_name);
+    
+    reportfile << "{\n";
+    reportfile << "\t\"splat\": \"" << sr.splat_version.c_str() << "\",\n";
+    reportfile << "\t\"name\": \"" << tx_site.name.c_str() << "\",\n";
+    reportfile << "\t\"image\": {\n";
+    reportfile << "\t\t\"file\": \"" << mapfile.c_str() << ".png\",\n";
+    reportfile << "\t\t\"projection\": \"EPSG:3857\",\n";
+    reportfile << "\t\t\"bounds\": [[" << em.min_north << ", " << 360-em.max_west << "],[" << em.max_north << ", " << 360-em.min_west << "]],\n";
+    reportfile << "\t\t\"unit\": \"dbm\",\n";	//TODO: determine unit (dBm or dBuV/m)
+    reportfile << "\t\t\"colormap\": {\n";
+    reportfile << "\t\t\t\"0\": \"#FF0000\",\n";
+    reportfile << "\t\t\t\"-10\": \"#FF8000\",\n";	//TODO: determine colormap
+    reportfile << "\t\t}\n\t},\n";
+    reportfile << "\t\"qth\": {\n";
+    reportfile << "\t\t\"coordinates\": [" << tx_site.lat << ", " << 360-tx_site.lon << "],\n";
+    reportfile << "\t\t\"height\": " << tx_site.alt << "\n";
+    reportfile << "\t},\n";
+    reportfile << "\t\"lrp\": {\n";
+    reportfile << "\t\t\"permittivity\": " << lrp.eps_dielect << ",\n";
+    reportfile << "\t\t\"conductivity\": " << lrp.sgm_conductivity << ",\n";
+    reportfile << "\t\t\"bending\": " << lrp.eno_ns_surfref << ",\n";
+    reportfile << "\t\t\"frequency\": " << lrp.frq_mhz << ",\n";
+    reportfile << "\t\t\"climate\": " << lrp.radio_climate << ",\n";
+    reportfile << "\t\t\"polarization\": " << lrp.pol << ",\n";
+    reportfile << "\t\t\"location_variability\": " << lrp.conf << ",\n";
+    reportfile << "\t\t\"time_variability\": " << lrp.rel << ",\n";
+    reportfile << "\t\t\"erp\": " << lrp.erp << ",\n";
+    reportfile << "\t},\n";
+    reportfile << "\t\"arguments\": {\n";
     
     std::map<std::string, std::string>::iterator i;
     for (i=args.begin(); i != args.end(); i++) {
-		fprintf(fd, "\t\t\"%s\": \"%s\",\n", i->first.c_str(), i->second.c_str());
+		reportfile << "\t\t\"" <<  i->first.c_str() << "\": \"" << i->second.c_str() << "\",\n";
 	}
 
-    fprintf(fd, "\t}\n");
-    fprintf(fd, "}");
-    
-	fclose(fd);
+    reportfile << "\t},\n";
+    reportfile << "},\n";
 
-    fprintf(stdout, "\nJSON file written to: \"%s\"", report_name);
+	reportfile.close();
+	
+	std::cout << "\nJSON file written to: " << report_name;
 
     fflush(stdout);
 }
