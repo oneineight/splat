@@ -1157,14 +1157,20 @@ int main(int argc, const char *argv[]) {
 	arg_t args;
 	
 	std::string curr_arg = "";
+	int curr_arg_i = 0;
 	for(int i=0; i<argc; i++) {		// step through argv[] array
 		std::string arg = argv[i];
 		if(arg.find("-") == 0) {	// check if current argument has leading "-"
 			curr_arg = arg.erase(0,1);	// remove leading "-" and save as new array entry
+			curr_arg_i = i;		// save position for multiple parameters
 			args[curr_arg] = "";
 		} else {
 			if (curr_arg != "") {
-				args[curr_arg] = arg;	// if no "-" was found the current argument is considered as a value to the previous argument
+				if(i == (curr_arg_i + 1)) {
+					args[curr_arg] = arg;	// if no "-" was found the current argument is considered as a value to the previous argument
+				} else {
+					args[curr_arg] += " " + arg;	// if no "-" was found the current argument is considered as a value to the previous argument
+				}
 			}
 		}
 	}
