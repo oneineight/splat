@@ -766,7 +766,7 @@ int main(int argc, const char *argv[]) {
         }
 
         if (lrp.erp == 0.0) {
-            image.WriteImage_PathLoss(sr.imagetype, region);
+            image.WriteCoverageMap(MAPTYPE_PathLoss, sr.imagetype, region);
         } else {
             if (sr.dbm)
                 image.WriteCoverageMap(MAPTYPE_dBm, sr.imagetype, region);
@@ -1134,7 +1134,7 @@ int main(int argc, const char *argv[]) {
 
         else {
             if (lrp.erp == 0.0)
-                image.WriteImage_PathLoss(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_PathLoss, sr.imagetype, region);
             else if (sr.dbm)
                 image.WriteCoverageMap(MAPTYPE_dBm, sr.imagetype, region);
             else

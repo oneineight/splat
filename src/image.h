@@ -41,10 +41,6 @@ class Image {
 
     void WriteImage(ImageType imagetype);
 
-    void WriteImage_PathLoss(ImageType imagetype, Region &region);
-
-    void WriteImage_dBuVm(ImageType imagetype, Region &region);
-
     void WriteCoverageMap(MapType maptype, ImageType imagetype, Region &region);
 
   private:
