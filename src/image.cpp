@@ -1285,7 +1285,7 @@ void Image::WriteImage_dBm(ImageType imagetype, Region &region) {
         basename = Utilities::Basename(xmtr[0].filename);
         filename = basename + suffix;
     } else {
-        basename = filename; //Utilities::Basename(filename); // TODO: Does not work!
+        basename = Utilities::Basename(filename);
     }
 
     mapfile = basename + suffix;
