@@ -65,6 +65,7 @@ class SplatRun {
     int arraysize;
 
     bool kml;
+    bool json;
     bool geo;
     bool gpsav;
     bool ngs;
@@ -90,6 +91,7 @@ class SplatRun {
     bool metric;
     bool dbm;
     bool smooth_contours;
+    bool bottom_legend;
     bool verbose;
     bool multithread;
     std::string sdf_delimiter;

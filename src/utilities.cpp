@@ -17,6 +17,7 @@
 #include <math.h>
 #include <sstream>
 #include <string>
+#include <iostream>
 
 using namespace std;
 
@@ -229,6 +230,7 @@ string::size_type Utilities::ExtensionIdx(const string &path) {
 // TODO: TEST: path with extension. path without extension. path with slashes.
 string Utilities::Basename(const string &path) {
     string::size_type idx = Utilities::ExtensionIdx(path);
+    std::cout << "bla: " << idx;
     return idx == string::npos ? "" : path.substr(0, idx);
 }
 
@@ -239,8 +241,7 @@ string Utilities::Extension(const string &path) {
 }
 
 // TODO: TEST: path with extension. path without extension. path with slashes.
-string Utilities::DivideExtension(string &path,
-                                  const string &default_extension) {
+string Utilities::DivideExtension(string &path,const string &default_extension) {
     string::size_type idx = Utilities::ExtensionIdx(path);
 
     // No delimeter found. There must be no extension specified. Use the

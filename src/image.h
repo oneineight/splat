@@ -34,11 +34,11 @@ class Image {
 
     void WriteImage(ImageType imagetype);
 
-    void WriteImageLR(ImageType imagetype, Region &region);
+    void WriteImage_PathLoss(ImageType imagetype, Region &region);
 
-    void WriteImageSS(ImageType imagetype, Region &region);
+    void WriteImage_dBuVm(ImageType imagetype, Region &region);
 
-    void WriteImageDBM(ImageType imagetype, Region &region);
+    void WriteImage_dBm(ImageType imagetype, Region &region);
 
   private:
     void WriteKmlForImage(const std::string &groundOverlayName,

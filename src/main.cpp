@@ -80,6 +80,7 @@ int main(int argc, const char *argv[]) {
     sr.topomap = false;
     sr.geo = false;
     sr.kml = false;
+    sr.json = false;
     sr.pt2pt_mode = false;
     sr.area_mode = false;
     sr.ngs = false;
@@ -88,8 +89,9 @@ int main(int argc, const char *argv[]) {
     sr.fresnel_plot = true;
     sr.command_line_log = false;
     sr.rxsite = false;
-    sr.metric = false;
+    sr.metric = true;
     sr.dbm = false;
+    sr.bottom_legend = true;
     sr.smooth_contours = false;
 
     sr.altitude = 0.0;
@@ -113,15 +115,9 @@ int main(int argc, const char *argv[]) {
     sr.imagetype = IMAGETYPE_PPM;
 #endif
     sr.multithread = true;
-    sr.verbose = 1;
-    unsigned char imagetype_set = 0;
-    
-//#ifndef _WIN32
-//    sr.sdf_delimiter = ":";
-//#else
+    sr.verbose = 1;    
     sr.sdf_delimiter = "_";
-//#endif
-
+    
     if (argc == 1) {
         cout
             << "\n\t\t --==[ " << SplatRun::splat_name << " v"
@@ -342,13 +338,14 @@ int main(int argc, const char *argv[]) {
             sr.norm = strcmp(argv[x], "-H") == 0 ? true : false;
         }
 
+		bool imagetype_set = false;
 #ifdef HAVE_LIBPNG
         if (strcmp(argv[x], "-ppm") == 0) {
             if (imagetype_set && sr.imagetype != IMAGETYPE_PPM) {
                 fprintf(stdout, "-jpg and -ppm are exclusive options, ignoring -ppm.\n");
             } else {
                 sr.imagetype = IMAGETYPE_PPM;
-                imagetype_set = 1;
+                imagetype_set = true;
             }
         }
 #endif
@@ -358,7 +355,7 @@ int main(int argc, const char *argv[]) {
                 fprintf(stdout, "-tif and -ppm are exclusive options, ignoring -ppm.\n");
             } else {
                 sr.imagetype = IMAGETYPE_GEOTIFF;
-                imagetype_set = 1;
+                imagetype_set = true;
             }
         }
 #endif
@@ -372,7 +369,7 @@ int main(int argc, const char *argv[]) {
 #endif
             } else {
                 sr.imagetype = IMAGETYPE_JPG;
-                imagetype_set = 1;
+                imagetype_set = true;
             }
         }
 #endif
@@ -388,6 +385,9 @@ int main(int argc, const char *argv[]) {
 
         if (strcmp(argv[x], "-kml") == 0)
             sr.kml = true;
+            
+        if (strcmp(argv[x], "-json") == 0)
+            sr.json = true;
 
         if (strcmp(argv[x], "-nf") == 0)
             sr.fresnel_plot = false;
@@ -446,8 +446,7 @@ int main(int argc, const char *argv[]) {
                 sr.area_mode = true;
 
                 if (sr.coverage)
-                    fprintf(stdout,
-                            "c and L are exclusive options, ignoring L.\n");
+                    fprintf(stdout,"c and L are exclusive options, ignoring L.\n");
             }
         }
 
@@ -572,15 +571,13 @@ int main(int argc, const char *argv[]) {
      and exit gracefully. */
 
     if (tx_site.size() == 0) {
-        fprintf(stderr, "\n%c*** ERROR: No transmitter site(s) specified!\n\n",
-                7);
+        fprintf(stderr, "\n%c*** ERROR: No transmitter site(s) specified!\n\n", 7);
         exit(-1);
     }
 
     for (x = 0, y = 0; x < tx_site.size(); x++) {
         if (tx_site[x].lat == 91.0 && tx_site[x].lon == 361.0) {
-            fprintf(stderr, "\n*** ERROR: Transmitter site #%lu not found!",
-                    x + 1);
+            fprintf(stderr, "\n*** ERROR: Transmitter site #%lu not found!", x + 1);
             y++;
         }
     }
@@ -594,18 +591,21 @@ int main(int argc, const char *argv[]) {
         rx_site.lat == 91.0 && rx_site.lon == 361.0) {
         if (sr.max_range != 0.0 && tx_site.size() != 0) {
             /* Plot topographic map of radius "sr.max_range" */
-
             sr.map = false;
             sr.topomap = true;
-        }
-
-        else {
+        } else {
             fprintf(stderr,
-                    "\n%c*** ERROR: No receiver site found or specified!\n\n",
-                    7);
+                   "\n%c*** ERROR: No receiver site found or specified!\n\n", 7);
             exit(-1);
         }
     }
+    
+    /* check if the output map should have a bottom legend */
+    if (sr.kml || sr.geo || (sr.imagetype == IMAGETYPE_GEOTIFF)) {
+		sr.bottom_legend = false;
+	} else {
+		sr.bottom_legend = true;
+	}
 
     switch (sr.maxpages) {
     case 1:
@@ -750,28 +750,28 @@ int main(int argc, const char *argv[]) {
             em_p->PlaceMarker(rx_site);
 
         if (boundary_file.size() > 0) {
-            for (x = 0; x < boundary_file.size(); x++)
+            for (x = 0; x < boundary_file.size(); x++) {
                 bf.LoadBoundaries(boundary_file[x], *em_p);
-
+			}
             fprintf(stdout, "\n");
             fflush(stdout);
         }
 
         if (city_file.size() > 0) {
-            for (x = 0; x < city_file.size(); x++)
+            for (x = 0; x < city_file.size(); x++) {
                 cf.LoadCities(city_file[x], *em_p);
-
+			}
             fprintf(stdout, "\n");
             fflush(stdout);
         }
 
         if (lrp.erp == 0.0) {
-            image.WriteImageLR(sr.imagetype, region);
+            image.WriteImage_PathLoss(sr.imagetype, region);
         } else {
             if (sr.dbm)
-                image.WriteImageDBM(sr.imagetype, region);
+                image.WriteImage_dBm(sr.imagetype, region);
             else
-                image.WriteImageSS(sr.imagetype, region);
+                image.WriteImage_dBuVm(sr.imagetype, region);
         }
 
         exit(0);
@@ -1134,11 +1134,11 @@ int main(int argc, const char *argv[]) {
 
         else {
             if (lrp.erp == 0.0)
-                image.WriteImageLR(sr.imagetype, region);
+                image.WriteImage_PathLoss(sr.imagetype, region);
             else if (sr.dbm)
-                image.WriteImageDBM(sr.imagetype, region);
+                image.WriteImage_dBm(sr.imagetype, region);
             else
-                image.WriteImageSS(sr.imagetype, region);
+                image.WriteImage_dBuVm(sr.imagetype, region);
         }
     }
     
@@ -1176,8 +1176,8 @@ int main(int argc, const char *argv[]) {
 	}
 	/* end argv[] reading */
 	
-    Json json(*em_p, sr);
-    json.WriteJSON(args, tx_site[0], lrp, mapfile);
+    //Json json(*em_p, sr);
+    //json.WriteJSON(args, tx_site[0], lrp, mapfile);
     
 
     if (sr.command_line_log && !logfile.empty()) {

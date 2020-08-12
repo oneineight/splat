@@ -317,7 +317,7 @@ void Image::WriteImage(ImageType imagetype) {
  * degrees from its representation in em.dem[][] so that north points up and
  * east points right.
  */
-void Image::WriteImageLR(ImageType imagetype, Region &region) {
+void Image::WriteImage_PathLoss(ImageType imagetype, Region &region) {
     string basename, mapfile, geofile, kmlfile, ckfile, suffix;
 #if DO_KMZ
     string kmzfile;
@@ -749,7 +749,7 @@ void Image::WriteImageLR(ImageType imagetype, Region &region) {
  * In this version of the WriteImage function the signal strength is
  *  plotted (vs the power level, plotted by WriteImageDBM).
  */
-void Image::WriteImageSS(ImageType imagetype, Region &region) {
+void Image::WriteImage_dBuVm(ImageType imagetype, Region &region) {
     string basename, mapfile, geofile, kmlfile, ckfile, suffix;
 #if DO_KMZ
     string kmzfile;
@@ -767,11 +767,9 @@ void Image::WriteImageSS(ImageType imagetype, Region &region) {
     Pixel pixel = 0;
 
     one_over_gamma = 1.0 / GAMMA;
-    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation),
-                             one_over_gamma);
+    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation), one_over_gamma);
 
-    width =
-        (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
+    width = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
     height = (unsigned)(sr.ippd *
                         Utilities::ReduceAngle(em.max_north - em.min_north));
 
@@ -1239,7 +1237,7 @@ void Image::WriteImageSS(ImageType imagetype, Region &region) {
  * In this version of the WriteImage function the power level is
  *  plotted (vs the signal strength, plotted by WriteImageDBM).
  */
-void Image::WriteImageDBM(ImageType imagetype, Region &region) {
+void Image::WriteImage_dBm(ImageType imagetype, Region &region) {
     string basename, mapfile, geofile, kmlfile, ckfile, suffix;
     unsigned width, height, terrain, red, green, blue;
     unsigned int imgheight, imgwidth;
@@ -1302,38 +1300,32 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
 
     north = (double)em.max_north - sr.dpp;
 
-    if (sr.kml || sr.geo)
-        south = (double)em.min_north; /* No bottom legend */
-    else
-        south = (double)em.min_north -
-                (30.0 / sr.ppd); /* 30 pixels for bottom legend */
+    if (sr.bottom_legend == false) {
+		/* No bottom legend */
+        south = (double)em.min_north;
+        imgwidth = width;
+        imgheight = height;
+    } else {
+		/* 30 pixels for bottom legend */
+        south = (double)em.min_north - (30.0 / sr.ppd);
+        imgwidth = width;
+        imgheight = height + 30;
+    }
 
     east = (minwest < 180.0 ? -minwest : 360.0 - em.min_west);
     west = (double)(em.max_west < 180 ? -em.max_west : 360 - em.max_west);
 
-    if (sr.geo) { // && sr.kml == 0) {
+    if (sr.geo) {
         WriteGeo(geofile, mapfile, north, south, east, west, width, height);
     }
 
-    if (sr.kml && sr.geo == 0) {
+    if (sr.kml && (sr.geo == 0)) {
         WriteKmlForImage("SPLAT! Signal Power Level Contours",
                          xmtr[0].name + " Transmitter Contours", true, kmlfile,
                          mapfile, north, south, east, west, ckfile);
     }
 
     fd = fopen(mapfile.c_str(), "wb");
-
-    if (sr.kml || sr.geo) {
-        /* No bottom legend */
-        imgwidth = width;
-        imgheight = height;
-    }
-
-    else {
-        /* Allow space for bottom legend */
-        imgwidth = width;
-        imgheight = height + 30;
-    }
 
     fprintf(stdout, "\nWriting Power Level (dBm) map \"%s\" (%ux%u image)... ",
             mapfile.c_str(), imgwidth, imgheight);
@@ -1450,7 +1442,7 @@ void Image::WriteImageDBM(ImageType imagetype, Region &region) {
             iw.EmitLine();
         }
 
-        if (sr.kml == 0 && sr.geo == 0) {
+        if (sr.bottom_legend) {
             /* Display legend along bottom of image
              if not generating .sr.kmlor .geo output. */
 
