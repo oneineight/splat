@@ -769,9 +769,9 @@ int main(int argc, const char *argv[]) {
             image.WriteImage_PathLoss(sr.imagetype, region);
         } else {
             if (sr.dbm)
-                image.WriteImage_dBm(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_dBm, sr.imagetype, region);
             else
-                image.WriteImage_dBuVm(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_dBuVm, sr.imagetype, region);
         }
 
         exit(0);
@@ -1136,9 +1136,9 @@ int main(int argc, const char *argv[]) {
             if (lrp.erp == 0.0)
                 image.WriteImage_PathLoss(sr.imagetype, region);
             else if (sr.dbm)
-                image.WriteImage_dBm(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_dBm, sr.imagetype, region);
             else
-                image.WriteImage_dBuVm(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_dBuVm, sr.imagetype, region);
         }
     }
     

@@ -20,6 +20,13 @@
 #include <string>
 #include <vector>
 
+typedef enum MapType {
+    MAPTYPE_dBm,
+    MAPTYPE_dBuVm,
+    MAPTYPE_PathLoss,
+    MAPTYPE_LoS
+} MapType;
+
 class Image {
   private:
     const SplatRun &sr;
@@ -38,7 +45,7 @@ class Image {
 
     void WriteImage_dBuVm(ImageType imagetype, Region &region);
 
-    void WriteImage_dBm(ImageType imagetype, Region &region);
+    void WriteCoverageMap(MapType maptype, ImageType imagetype, Region &region);
 
   private:
     void WriteKmlForImage(const std::string &groundOverlayName,
