@@ -19,7 +19,6 @@
 #include "image.h"
 #include "itwom3.0.h"
 #include "kml.h"
-#include "json.h"
 #include "lrp.h"
 #include "pat_file.h"
 #include "path.h"
@@ -719,6 +718,8 @@ int main(int argc, const char *argv[]) {
     Region region;
 
     if (!ani_filename.empty()) {
+	/* read alphanumeric output file from previous simulations if given */
+	
         // TODO: Here's an instance where reading the LRParms may say to load
         // a PAT file but it's never used. Refactor this.
         PatFile pat = PatFile();
@@ -767,6 +768,8 @@ int main(int argc, const char *argv[]) {
 
         exit(0);
     }
+    
+    /* proceed for normal simulation */
 
     x = 0;
     y = 0;
@@ -812,7 +815,6 @@ int main(int argc, const char *argv[]) {
     }
 
     /* Load the required SDF files */
-
     em_p->LoadTopoData(max_lon, min_lon, max_lat, min_lat, sdf);
 
     if (sr.area_mode || sr.topomap) {
@@ -820,13 +822,13 @@ int main(int argc, const char *argv[]) {
             /* "Ball park" estimates used to load any additional
              SDF files required to conduct this analysis. */
 
-            sr.tx_range =
-                sqrt(1.5 * (tx_site[z].alt + em_p->GetElevation(tx_site[z])));
+            sr.tx_range = sqrt(1.5 * (tx_site[z].alt + em_p->GetElevation(tx_site[z])));
 
-            if (sr.LRmap)
+            if (sr.LRmap) {
                 sr.rx_range = sqrt(1.5 * sr.altitudeLR);
-            else
+            } else {
                 sr.rx_range = sqrt(1.5 * sr.altitude);
+			}
 
             /* sr.deg_range determines the maximum
              amount of topo data we read */
@@ -841,9 +843,9 @@ int main(int argc, const char *argv[]) {
              width of the analysis and the size of
              the map. */
 
-            if (sr.max_range == 0.0)
+            if (sr.max_range == 0.0) {
                 sr.max_range = sr.tx_range + sr.rx_range;
-
+			}
             sr.deg_range = sr.max_range / 57.0;
 
             /* Prevent the demand for a really wide coverage
@@ -888,13 +890,13 @@ int main(int argc, const char *argv[]) {
                 break;
             }
 
-            if (fabs(tx_site[z].lat) < 70.0)
+            if (fabs(tx_site[z].lat) < 70.0) {
                 sr.deg_range_lon = sr.deg_range / cos(DEG2RAD * tx_site[z].lat);
-            else
+            } else {
                 sr.deg_range_lon = sr.deg_range / cos(DEG2RAD * 70.0);
-
+			}
+			
             /* Correct for squares in degrees not being square in miles */
-
             if (sr.deg_range > sr.deg_limit)
                 sr.deg_range = sr.deg_limit;
 
@@ -934,7 +936,6 @@ int main(int argc, const char *argv[]) {
         }
 
         /* Load any additional SDF files, if required */
-
         em_p->LoadTopoData(max_lon, min_lon, max_lat, min_lat, sdf);
     }
 
@@ -1119,12 +1120,10 @@ int main(int argc, const char *argv[]) {
         }
 
         /* Plot the map */
-
-        if (sr.coverage || sr.pt2pt_mode || sr.topomap)
+        if (sr.coverage || sr.pt2pt_mode || sr.topomap) {
             //image.WriteCoverageMap(MAPTYPE_LOS, sr.imagetype, region);
             image.WriteImage(sr.imagetype);
-
-        else {
+        } else {
             if (lrp.erp == 0.0)
                 image.WriteCoverageMap(MAPTYPE_PATHLOSS, sr.imagetype, region);
             else if (sr.dbm)
@@ -1132,45 +1131,7 @@ int main(int argc, const char *argv[]) {
             else
                 image.WriteCoverageMap(MAPTYPE_DBUVM, sr.imagetype, region);
         }
-    }
-    
-    // JSON output by der-stefan
-    // This is NOT yet for productive use! I currently test coverage predictions only, no point2point predictions.
-    
-    /* read in argv[] as an associative array.
-	 * You can now access the list e.g. by args["o"] which will not fail if the argument is not set
-	 * 
-	 *	std::map<std::string, std::string>::iterator i;
-	 *		for (i=args.begin(); i != args.end(); i++) {
-	 *		std::cout << i->first << ": " << i->second << std::endl;
-	 *	}
-	 */
-	//typedef std::map<std::string,std::string> arg_t;
-	arg_t args;
-	
-	std::string curr_arg = "";
-	int curr_arg_i = 0;
-	for(int i=0; i<argc; i++) {		// step through argv[] array
-		std::string arg = argv[i];
-		if(arg.find("-") == 0) {	// check if current argument has leading "-"
-			curr_arg = arg.erase(0,1);	// remove leading "-" and save as new array entry
-			curr_arg_i = i;		// save position for multiple parameters
-			args[curr_arg] = "";
-		} else {
-			if (curr_arg != "") {
-				if(i == (curr_arg_i + 1)) {
-					args[curr_arg] = arg;	// if no "-" was found the current argument is considered as a value to the previous argument
-				} else {
-					args[curr_arg] += " " + arg;	// if no "-" was found the current argument is considered as a value to the previous argument
-				}
-			}
-		}
-	}
-	/* end argv[] reading */
-	
-    //Json json(*em_p, sr);
-    //json.WriteJSON(args, tx_site[0], lrp, mapfile);
-    
+    }    
 
     if (sr.command_line_log && !logfile.empty()) {
         fstream fs;
@@ -1179,15 +1140,13 @@ int main(int argc, const char *argv[]) {
         // TODO: Should we fail silently if we can't open the logfile. Shouldn't
         // we WARN?
         if (fs) {
-            for (x = 0; x < (size_t)argc; x++)
+            for (x = 0; x < (size_t)argc; x++) {
                 fs << argv[x] << " ";
-
+			}
             fs << endl;
-
             fs.close();
 
-            cout << "\nCommand-line parameter log written to: \"" << logfile
-                 << "\"\n";
+            cout << "\nCommand-line parameter log written to: \"" << logfile << "\"\n";
         }
     }
 
