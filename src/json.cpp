@@ -18,6 +18,8 @@
 #include <fstream>
 #include <bits/stdc++.h>
 
+using namespace std;
+
 Json::Json(const ElevationMap &em, const SplatRun &sr)
     : path(sr.arraysize, sr.ppd), em(em), sr(sr) {}
     
@@ -28,18 +30,18 @@ Json::Json(const ElevationMap &em, const SplatRun &sr)
     /* read in argv[] as an associative array.
 	 * You can now access the list e.g. by args["o"] which will not fail if the argument is not set
 	 * 
-	 *	std::map<std::string, std::string>::iterator i;
+	 *	map<string, string>::iterator i;
 	 *		for (i=args.begin(); i != args.end(); i++) {
-	 *		std::cout << i->first << ": " << i->second << std::endl;
+	 *		cout << i->first << ": " << i->second << endl;
 	 *	}
 	 */
-	//typedef std::map<std::string,std::string> arg_t;
+	//typedef map<string,string> arg_t;
 /*	arg_t args;
 	
-	std::string curr_arg = "";
+	string curr_arg = "";
 	int curr_arg_i = 0;
 	for(int i=0; i<argc; i++) {		// step through argv[] array
-		std::string arg = argv[i];
+		string arg = argv[i];
 		if(arg.find("-") == 0) {	// check if current argument has leading "-"
 			curr_arg = arg.erase(0,1);	// remove leading "-" and save as new array entry
 			curr_arg_i = i;		// save position for multiple parameters
@@ -61,7 +63,7 @@ Json::Json(const ElevationMap &em, const SplatRun &sr)
 // === unsorted end ===
 
     
-void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
+void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, string mapfile) {
 	int x;
 	char report_name[80];
 
@@ -73,7 +75,7 @@ void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
             report_name[x] == 47)
             report_name[x] = '_';
     
-    std::ofstream reportfile(report_name);
+    ofstream reportfile(report_name);
     
     reportfile << "{\n";
     reportfile << "\t\"splat\": \"" << sr.splat_version.c_str() << "\",\n";
@@ -104,7 +106,7 @@ void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
     reportfile << "\t},\n";
     reportfile << "\t\"arguments\": {\n";
     
-    std::map<std::string, std::string>::iterator i;
+    map<string, string>::iterator i;
     int pos = 0;
     int len = args.size();
     for (i=args.begin(); i != args.end(); i++, pos++) {
@@ -121,7 +123,7 @@ void Json::WriteJSON(arg_t args, Site tx_site, Lrp lrp, std::string mapfile) {
 
 	reportfile.close();
 	
-	std::cout << "\nJSON file written to: " << report_name;
+	cout << "\nJSON file written to: " << report_name;
 
     fflush(stdout);
 }

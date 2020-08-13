@@ -115,8 +115,12 @@ class ImageWriter {
     unsigned char *m_imgline_alpha = NULL;
 
 #ifdef HAVE_LIBPNG
+	#define PNG_NTEXT 4
     png_structp m_png_ptr = NULL;
     png_infop m_info_ptr = NULL;
+    png_text m_text_ptr[PNG_NTEXT] = {0};
+    std::string bounds_str;
+    char bounds[80];
 #endif
 #ifdef HAVE_LIBGDAL
 	GDALDriver *poDriver;

@@ -40,6 +40,8 @@
 #include <iostream>
 #include <string>
 
+using namespace std;
+
 
 #define DEFAULT_JPEG_QUALITY 90
 
@@ -65,9 +67,21 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
     default:
 #ifdef HAVE_LIBPNG
     case IMAGETYPE_PNG:
-        m_png_ptr =
-            png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+        m_png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
         m_info_ptr = png_create_info_struct(m_png_ptr);
+        // write metadata
+        m_text_ptr[0].key = strdup("Title");
+        m_text_ptr[0].text = strdup("SPLAT!");
+        m_text_ptr[0].compression = PNG_TEXT_COMPRESSION_NONE;
+        m_text_ptr[1].key = strdup("projection");
+        m_text_ptr[1].text = strdup("EPSG:4326");
+        m_text_ptr[1].compression = PNG_TEXT_COMPRESSION_NONE;
+        m_text_ptr[2].key = strdup("bounds");
+        bounds_str = ("[["+to_string(m_south)+","+to_string(m_west)+"],["+to_string(m_north)+","+to_string(m_east)+"]]").c_str();
+		sprintf(bounds, "%s", bounds_str.c_str());
+        m_text_ptr[2].text = bounds;
+        m_text_ptr[2].compression = PNG_TEXT_COMPRESSION_NONE;
+        png_set_text(m_png_ptr, m_info_ptr, m_text_ptr, PNG_NTEXT);
         png_init_io(m_png_ptr, m_fp);
         png_set_IHDR(m_png_ptr, m_info_ptr, m_width, m_height,
                      8, /* 8 bits per color or 24 bits per pixel for RGB */
