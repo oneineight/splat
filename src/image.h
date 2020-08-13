@@ -21,10 +21,10 @@
 #include <vector>
 
 typedef enum MapType {
-    MAPTYPE_dBm,
-    MAPTYPE_dBuVm,
-    MAPTYPE_PathLoss,
-    MAPTYPE_LoS
+    MAPTYPE_DBM,
+    MAPTYPE_DBUVM,
+    MAPTYPE_PATHLOSS,
+    MAPTYPE_LOS
 } MapType;
 
 class Image {

@@ -312,7 +312,7 @@ void Image::WriteImage(ImageType imagetype) {
     fflush(stdout);
 }
 
-/* Generates a topographic map based on the calculated values held in the
+/* Generates a coverage map based on the calculated values held in the
  * signal[][] array. The image created is rotated counter-clockwise 90 degrees
  * from its representation in em.dem[][] so that north points up and east points
  * right.
@@ -325,7 +325,7 @@ void Image::WriteImage(ImageType imagetype) {
  */
  
 void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &region) {
-    string basename, mapfile, geofile, kmlfile, ckfile, suffix;
+    string basename, mapfile, geofile, kmlfile, ckfile, suffix, description;
 #if DO_KMZ
     string kmzfile;
 #endif
@@ -335,10 +335,8 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
     int indx, x, y, z = 1, x0 = 0, y0 = 0, signal = 0, level, hundreds, tens, units, match, colorwidth;
     const Dem *dem;
     double conversion, one_over_gamma, lat, lon, north, south, east, west, minwest;
-    string description = "";
-    FILE *fd;
-
     Pixel pixel = 0;
+    FILE *fd;
 
     one_over_gamma = 1.0 / GAMMA;
     conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation), one_over_gamma);
@@ -347,17 +345,22 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
     height = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_north - em.min_north));
 
 	switch (maptype) {
-	case MAPTYPE_dBm:
+	case MAPTYPE_DBM:
 		region.LoadDBMColors(xmtr[0]);
 		description = "Power Level (dBm)";
 		break;
-	case MAPTYPE_dBuVm:
+	case MAPTYPE_DBUVM:
 		region.LoadSignalColors(xmtr[0]);
 		description = "Electric Field Strength (dBuv/m)";
 		break;
-	case MAPTYPE_PathLoss:
+	case MAPTYPE_PATHLOSS:
 		region.LoadLossColors(xmtr[0]);
 		description = "Path Loss (dB)";
+		break;
+	case MAPTYPE_LOS:
+		description = "Line of Sight";
+		cerr << "Not yet implemented! Use Image::WriteImage() instead.";
+		exit(1);
 		break;
 	}
 
@@ -445,13 +448,13 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
                 if (dem) {
                     mask = dem->mask[x0 * sr.ippd + y0];
                     
-                    if(maptype == MAPTYPE_dBm) {
+                    if(maptype == MAPTYPE_DBM) {
 						// signal contains the power level in dBm
 						signal = (dem->signal[x0 * sr.ippd + y0]) - 200;
-					} else if(maptype == MAPTYPE_dBuVm) {
+					} else if(maptype == MAPTYPE_DBUVM) {
 						// signal contains the power level in dBuV/m
 						signal = (dem->signal[x0 * sr.ippd + y0]) - 100;
-					} else if(maptype == MAPTYPE_PathLoss) {
+					} else if(maptype == MAPTYPE_PATHLOSS) {
 						// signal contains the path loss in dB
 						signal = (dem->signal[x0 * sr.ippd + y0]);
 					}
@@ -462,7 +465,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
                     green = 0;
                     blue = 0;
 
-					if(maptype != MAPTYPE_PathLoss) {
+					if(maptype != MAPTYPE_PATHLOSS) {
 						// normal way
 						if (signal >= region.level[0]) {
 							match = 0;
@@ -538,7 +541,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
                         /* County Boundaries: Black */
                         pixel = COLOR_BLACK;
                     } else {
-						if (maptype != MAPTYPE_PathLoss) {
+						if (maptype != MAPTYPE_PATHLOSS) {
 						
 							if (sr.contour_threshold != 0 && signal < sr.contour_threshold) {
 								if (sr.ngs) {
@@ -633,7 +636,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
                     indx = x0 / colorwidth;
                     x = x0 % colorwidth;
                     
-                    if(maptype == MAPTYPE_dBm) {
+                    if(maptype == MAPTYPE_DBM) {
 						level = abs(region.level[indx]);
 
 						hundreds = level / 100;
@@ -731,7 +734,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
 						}
 					} // end dBm
 					
-					else if (maptype == MAPTYPE_dBuVm) {
+					else if (maptype == MAPTYPE_DBUVM) {
 						level = region.level[indx];
 
 						hundreds = level / 100;
@@ -799,7 +802,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
 						}
                     } // end dBuV/m
                     
-                    else if(maptype == MAPTYPE_PathLoss) {
+                    else if(maptype == MAPTYPE_PATHLOSS) {
 						level = region.level[indx];
 
 						hundreds = level / 100;
@@ -882,7 +885,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
                     indx = y0 / 30;
                     x = x0;
                     
-                    if(maptype == MAPTYPE_dBm) {
+                    if(maptype == MAPTYPE_DBM) {
 						level = abs(region.level[indx]);
 
 						hundreds = level / 100;
@@ -984,7 +987,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
 						}
                     } // end dBm
 						
-					else if(maptype == MAPTYPE_dBuVm) {
+					else if(maptype == MAPTYPE_DBUVM) {
 						level = region.level[indx];
 
 						hundreds = level / 100;
@@ -1053,7 +1056,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
 						}
 					} // end dBuV/m
 					
-					else if (maptype == MAPTYPE_PathLoss) {
+					else if (maptype == MAPTYPE_PATHLOSS) {
 						level = region.level[indx];
 
 						hundreds = level / 100;

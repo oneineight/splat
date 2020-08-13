@@ -563,7 +563,8 @@ int main(int argc, const char *argv[]) {
         if (strcmp(argv[x], "-hd") == 0) {
             sr.hd_mode = true;
         }
-    }
+    } /* end of command line argument scanning */
+
 
     /* Perform some error checking on the arguments
      and switches parsed from the command-line.
@@ -594,8 +595,7 @@ int main(int argc, const char *argv[]) {
             sr.map = false;
             sr.topomap = true;
         } else {
-            fprintf(stderr,
-                   "\n%c*** ERROR: No receiver site found or specified!\n\n", 7);
+            fprintf(stderr, "\n%c*** ERROR: No receiver site found or specified!\n\n", 7);
             exit(-1);
         }
     }
@@ -658,17 +658,8 @@ int main(int argc, const char *argv[]) {
     int degrees = (int)sqrt((int)sr.maxpages);
 
     cout << "This invocation of " << SplatRun::splat_name
-         << " supports analysis over a region of " << degrees << " square\n";
-
-    if (degrees == 1)
-        fprintf(stdout, "degree");
-    else
-        fprintf(stdout, "degrees");
-
-    fprintf(
-        stdout,
-        " of terrain, and computes signal levels using ITWOM Version %.1f.\n\n",
-        ITWOMVersion());
+         << " supports analysis over a region of " << degrees << " square " << ((degrees == 1) ? "degree" : "degrees")
+		 << " of terrain, and computes signal levels using ITWOM Version " << ITWOMVersion() << ".\n\n";
 
     sr.ppd = (double)sr.ippd; /* pixels per degree (double)  */
     sr.dpp = 1.0 / sr.ppd;    /* degrees per pixel */
@@ -766,12 +757,12 @@ int main(int argc, const char *argv[]) {
         }
 
         if (lrp.erp == 0.0) {
-            image.WriteCoverageMap(MAPTYPE_PathLoss, sr.imagetype, region);
+            image.WriteCoverageMap(MAPTYPE_PATHLOSS, sr.imagetype, region);
         } else {
             if (sr.dbm)
-                image.WriteCoverageMap(MAPTYPE_dBm, sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_DBM, sr.imagetype, region);
             else
-                image.WriteCoverageMap(MAPTYPE_dBuVm, sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_DBUVM, sr.imagetype, region);
         }
 
         exit(0);
@@ -1130,15 +1121,16 @@ int main(int argc, const char *argv[]) {
         /* Plot the map */
 
         if (sr.coverage || sr.pt2pt_mode || sr.topomap)
+            //image.WriteCoverageMap(MAPTYPE_LOS, sr.imagetype, region);
             image.WriteImage(sr.imagetype);
 
         else {
             if (lrp.erp == 0.0)
-                image.WriteCoverageMap(MAPTYPE_PathLoss, sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_PATHLOSS, sr.imagetype, region);
             else if (sr.dbm)
-                image.WriteCoverageMap(MAPTYPE_dBm, sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_DBM, sr.imagetype, region);
             else
-                image.WriteCoverageMap(MAPTYPE_dBuVm, sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_DBUVM, sr.imagetype, region);
         }
     }
     
