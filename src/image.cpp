@@ -448,6 +448,10 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
                 if (dem) {
                     mask = dem->mask[x0 * sr.ippd + y0];
                     
+                    /* Note: The array dem->signal holds a scaled value depending 
+                     * on the type that is unscaled again in the following.
+                     * See function PlotLRPath() in elevation_map.cpp
+                     */
                     if(maptype == MAPTYPE_DBM) {
 						// signal contains the power level in dBm
 						signal = (dem->signal[x0 * sr.ippd + y0]) - 200;
