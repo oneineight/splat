@@ -1269,7 +1269,7 @@ void ElevationMap::PlotLRPath(const Site &source, const Site &destination,
             elev[1] = (elev_t)(METERS_PER_MILE *
                                (path.distance[y] - path.distance[y - 1]));
 
-            if (sr.propagation_model == PROP_ITM)
+            if (sr.propagation_model == PROP_ITWOM)
                 point_to_point(elev, source.alt * METERS_PER_FOOT,
                                destination.alt * METERS_PER_FOOT,
                                lrp.eps_dielect, lrp.sgm_conductivity,
