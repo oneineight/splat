@@ -77,6 +77,13 @@ typedef enum ImageType {
 #endif
 } ImageType;
 
+typedef enum ProjectionType {
+    PROJ_EPSG_4326 = 0,
+#ifdef HAVE_LIBGDAL
+    PROJ_EPSG_3857
+#endif
+} ProjectionType;
+
 class ImageWriter {
   private:
     ImageWriter(); // private constructor

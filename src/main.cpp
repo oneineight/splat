@@ -53,7 +53,7 @@ int main(int argc, const char *argv[]) {
 
     char *env = NULL;
     string mapfile, elevation_file, height_file, longley_file, terrain_file,
-        udt_file, ani_filename, ano_filename, logfile, maxpages_str;
+        udt_file, ani_filename, ano_filename, logfile, maxpages_str, proj;
 
     vector<std::string> city_file;
     vector<std::string> boundary_file;
@@ -66,7 +66,7 @@ int main(int argc, const char *argv[]) {
     sr.maxpages = 16;
     sr.arraysize = -1;
 
-	sr.olditm = true;
+	sr.propagation_model = PROP_ITM;
     sr.hd_mode = false;
     sr.coverage = false;
     sr.LRmap = false;
@@ -113,6 +113,7 @@ int main(int argc, const char *argv[]) {
 #else
     sr.imagetype = IMAGETYPE_PPM;
 #endif
+	sr.projection = PROJ_EPSG_4326;
     sr.multithread = true;
     sr.verbose = 1;    
     sr.sdf_delimiter = "_";
@@ -373,6 +374,25 @@ int main(int argc, const char *argv[]) {
         }
 #endif
 
+#ifdef HAVE_LIBGDAL
+        if (strcmp(argv[x], "-proj") == 0) {
+            if (sr.imagetype == IMAGETYPE_GEOTIFF || sr.imagetype == IMAGETYPE_PNG || sr.imagetype == IMAGETYPE_JPG) {
+				z = x + 1;
+				if (z <= y && argv[z][0] && argv[z][0] != '-') {
+					if(strcmp(argv[z], "epsg:3857") == 0) {
+						sr.projection = PROJ_EPSG_3857;
+					} else if(strcmp(argv[z], "epsg:4326") == 0) {
+						sr.projection = PROJ_EPSG_4326;
+					} else {
+						cerr << "Ignoring unknown projection " << argv[z] << " and taking epsg:4326 instead.\n";
+					}
+				}	
+            } else {
+                cerr << "-proj supports only gdal output formats. Please use -png, -tif or -jpg.\n";
+            }
+        }
+#endif
+
         if (strcmp(argv[x], "-metric") == 0)
             sr.metric = true;
 
@@ -407,7 +427,7 @@ int main(int argc, const char *argv[]) {
             sr.multithread = false;
 
         if (strcmp(argv[x], "-itwom") == 0)
-            sr.olditm = false;
+            sr.propagation_model = PROP_ITWOM;
 
         if (strcmp(argv[x], "-N") == 0) {
             sr.nolospath = true;
@@ -657,7 +677,7 @@ int main(int argc, const char *argv[]) {
     int degrees = (int)sqrt((int)sr.maxpages);
 
     cout << "This invocation of " << SplatRun::splat_name
-         << " supports analysis over a region of " << degrees << " square " << ((degrees == 1) ? "degree" : "degrees")
+         << " supports analysis over a region of " << degrees << " square \n" << ((degrees == 1) ? "degree" : "degrees")
 		 << " of terrain, and computes signal levels using ITWOM Version " << ITWOMVersion() << ".\n\n";
 
     sr.ppd = (double)sr.ippd; /* pixels per degree (double)  */

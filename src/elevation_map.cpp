@@ -901,10 +901,10 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude,
 
     count = 0;
 
-    if (sr.olditm)
-        fprintf(stdout, "\nComputing ITWOM ");
-    else
+    if(sr.propagation_model == PROP_ITM)
         fprintf(stdout, "\nComputing ITM ");
+    else
+        fprintf(stdout, "\nComputing ITWOM ");
 
     if (lrp.erp == 0.0)
         fprintf(stdout, "path loss");
@@ -1269,7 +1269,7 @@ void ElevationMap::PlotLRPath(const Site &source, const Site &destination,
             elev[1] = (elev_t)(METERS_PER_MILE *
                                (path.distance[y] - path.distance[y - 1]));
 
-            if (!sr.olditm)
+            if (sr.propagation_model == PROP_ITM)
                 point_to_point(elev, source.alt * METERS_PER_FOOT,
                                destination.alt * METERS_PER_FOOT,
                                lrp.eps_dielect, lrp.sgm_conductivity,
