@@ -47,6 +47,7 @@
 #endif
 #ifdef HAVE_LIBGDAL
 #include <gdal_priv.h>
+#include <gdalwarper.h>
 #include <cpl_conv.h>
 #include <ogr_spatialref.h>
 #endif
@@ -83,6 +84,7 @@ typedef enum ProjectionType {
     PROJ_EPSG_3857
 #endif
 } ProjectionType;
+
 
 class ImageWriter {
   private:
@@ -132,12 +134,20 @@ class ImageWriter {
 #ifdef HAVE_LIBGDAL
 	GDALDriver *poDriver;
 	GDALDataset *poDstDS;
+	GDALDataset *poDstDSproj;
 	char **papszOptions = NULL;
 	
 	/* georeferencing of image */
 	double adfGeoTransform[6] = {m_west, (m_east - m_west) / m_width, 0 , m_north, 0, (m_south - m_north) / m_height};
 	OGRSpatialReference oSRS;
 	char *pszSRS_WKT = NULL;
+	
+	/* vars for warping */
+	/*char *pszSRS_WKTproj = NULL;
+	GDALWarpOptions *psWarpOptions;
+	GDALWarpOperation oOperation;
+	void *hTransformArg;
+	int nPixels=0, nLines=0;*/
 #endif
 #ifdef HAVE_LIBJPEG
     struct jpeg_compress_struct m_cinfo = {0};

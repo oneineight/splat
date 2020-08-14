@@ -102,6 +102,48 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
 		oSRS.exportToWkt(&pszSRS_WKT);
 		poDstDS->SetProjection(pszSRS_WKT);	/* set projection and spatial reference system*/
 		CPLFree(pszSRS_WKT);
+		
+		/* Reprojection NON-FUNCTIONAL... */
+		/*poDriver = GetGDALDriverManager()->GetDriverByName("GTiff");
+		papszOptions = CSLSetNameValue(papszOptions, "COMPRESS", "DEFLATE");
+			
+		oSRS.SetWellKnownGeogCS("EPSG:3857");
+		oSRS.exportToWkt(&pszSRS_WKTproj);
+		hTransformArg = GDALCreateGenImgProjTransformer( poDstDS, pszSRS_WKT, NULL, pszSRS_WKTproj, FALSE, 0, 1 );
+		GDALSuggestedWarpOutput( poDstDS,GDALGenImgProjTransform, hTransformArg, adfGeoTransform, &nPixels, &nLines );
+		GDALDestroyGenImgProjTransformer( hTransformArg );
+		poDstDSproj = poDriver->Create("test_12345.tif", nPixels, nLines, 4, GDT_Byte, papszOptions);
+		poDstDSproj->SetGeoTransform(adfGeoTransform);
+		cout << pszSRS_WKTproj << endl;
+		poDstDSproj->SetProjection(pszSRS_WKTproj);
+		CPLFree(pszSRS_WKT);
+		CPLFree(pszSRS_WKTproj);
+		
+		psWarpOptions = GDALCreateWarpOptions();
+		psWarpOptions->hSrcDS = poDstDS;
+		psWarpOptions->hDstDS = poDstDSproj;
+		psWarpOptions->nBandCount = 4;
+		psWarpOptions->panSrcBands =
+			(int *) CPLMalloc(sizeof(int) * psWarpOptions->nBandCount );
+		psWarpOptions->panSrcBands[0] = 1;
+		psWarpOptions->panSrcBands[1] = 1;
+		psWarpOptions->panSrcBands[2] = 1;
+		psWarpOptions->panSrcBands[3] = 1;
+		psWarpOptions->panDstBands =
+			(int *) CPLMalloc(sizeof(int) * psWarpOptions->nBandCount );
+		psWarpOptions->panDstBands[0] = 1;
+		psWarpOptions->panDstBands[1] = 1;
+		psWarpOptions->panDstBands[2] = 1;
+		psWarpOptions->panDstBands[3] = 1;
+		psWarpOptions->pfnProgress = GDALTermProgress;
+		psWarpOptions->pTransformerArg =
+			GDALCreateGenImgProjTransformer( poDstDS,
+											GDALGetProjectionRef(poDstDS),
+											poDstDSproj,
+											GDALGetProjectionRef(poDstDSproj),
+											FALSE, 0.0, 1 );
+		psWarpOptions->pfnTransformer = GDALGenImgProjTransform;
+		*/
         break;
 #endif
 #ifdef HAVE_LIBJPEG
@@ -210,6 +252,14 @@ void ImageWriter::Finish() {
 #endif
 #ifdef HAVE_LIBGDAL
     case IMAGETYPE_GEOTIFF:
+		/* warping is not functional yet.
+		oOperation.Initialize( psWarpOptions );
+		oOperation.ChunkAndWarpImage( 0, 0,
+									GDALGetRasterXSize( poDstDSproj ),
+									GDALGetRasterYSize( poDstDSproj ) );
+		GDALDestroyGenImgProjTransformer( psWarpOptions->pTransformerArg );
+		GDALDestroyWarpOptions( psWarpOptions );	
+		GDALClose( (GDALDatasetH) poDstDSproj );*/
 		GDALClose( (GDALDatasetH) poDstDS );
 		GDALDestroyDriverManager();
         break;
