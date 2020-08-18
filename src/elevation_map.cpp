@@ -13,7 +13,7 @@
 #include "fontdata.h"
 #include "itwom3.0.h"
 #include "lrp.h"
-#include "pat_file.h"
+#include "antenna_pattern.h"
 #include "path.h"
 #include "sdf.h"
 #include "site.h"
@@ -886,7 +886,7 @@ void ElevationMap::PlotLOSMap(const Site &source, double altitude) {
  * the WriteImageLR() or WriteImageSS() functions are later invoked.
  */
 void ElevationMap::PlotLRMap(const Site &source, double altitude,
-                             const string &plo_filename, const PatFile &pat,
+                             const string &plo_filename, const AntennaPattern &pat,
                              const Lrp &lrp) {
     int y, z, count;
     Site edge;
@@ -1124,7 +1124,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude,
  */
 void ElevationMap::PlotLRPath(const Site &source, const Site &destination,
                               unsigned char mask_value, FILE *fd,
-                              const PatFile &pat, const Lrp &lrp) {
+                              const AntennaPattern &pat, const Lrp &lrp) {
     int x, y, ifs, ofs, errnum;
     char block = 0, strmode[100];
     double loss, azimuth, pattern = 0.0, xmtr_alt, dest_alt, xmtr_alt2,

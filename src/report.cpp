@@ -19,7 +19,7 @@
 #include "elevation_map.h"
 #include "itwom3.0.h"
 #include "lrp.h"
-#include "pat_file.h"
+#include "antenna_pattern.h"
 #include "path.h"
 #include "report.h"
 #include "sdf.h"
@@ -31,7 +31,7 @@ using namespace std;
 
 void Report::PathReport(const Site &source, const Site &destination,
                         const string &name, bool graph_it, elev_t elev[],
-                        const PatFile &pat, const Lrp &lrp) {
+                        const AntennaPattern &pat, const Lrp &lrp) {
     /* This function writes a SPLAT! Path Report (name.txt) to
      the filesystem.  If (graph_it == 1), then gnuplot is invoked
      to generate an appropriate output file indicating the ITM

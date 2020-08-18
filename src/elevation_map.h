@@ -18,7 +18,7 @@
 #include "dem.h"
 #include "site.h"
 #include "lrp.h"
-#include "pat_file.h"
+#include "antenna_pattern.h"
 
 #include <stdio.h>
 #include <string>
@@ -76,7 +76,7 @@ class ElevationMap {
     void PlotLOSMap(const Site &source, double altitude);
 
     void PlotLRMap(const Site &source, double altitude,
-                   const std::string &plo_filename, const PatFile &pat,
+                   const std::string &plo_filename, const AntennaPattern &pat,
                    const Lrp &lrp);
 
     int PutSignal(double lat, double lon, unsigned char signal);
@@ -89,7 +89,7 @@ class ElevationMap {
 
   private:
     void PlotLRPath(const Site &source, const Site &destination,
-                    unsigned char mask_value, FILE *fd, const PatFile &pat,
+                    unsigned char mask_value, FILE *fd, const AntennaPattern &pat,
                     const Lrp &lrp);
 
     bool FindMask(double lat, double lon, int &x, int &y, int &indx) const;

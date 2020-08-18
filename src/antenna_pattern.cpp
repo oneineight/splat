@@ -8,7 +8,7 @@
  * This file is covered by the LICENSE.md file in the root of this project.
  */
 
-#include "pat_file.h"
+#include "antenna_pattern.h"
 #include "site.h"
 #include "splat_run.h"
 #include <cmath>
@@ -18,7 +18,7 @@
 
 using namespace std;
 
-void PatFile::LoadPAT(const string &filename) {
+void AntennaPattern::LoadAntennaPattern(const string &filename) {
     /* This function reads and processes antenna pattern (.az
      and .el) files that correspond in name to previously
      loaded SPLAT! .lrp files.  */

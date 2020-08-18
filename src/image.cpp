@@ -13,7 +13,7 @@
 #include "elevation_map.h"
 #include "fontdata.h"
 #include "lrp.h"
-#include "pat_file.h"
+#include "antenna_pattern.h"
 #include "path.h"
 #include "region.h"
 #include "sdf.h"

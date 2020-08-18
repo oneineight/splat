@@ -8,6 +8,7 @@ include_directories(${GDAL_INCLUDE_DIR})
 
 add_executable(splat
     anf.cpp
+    antenna_pattern.cpp
     boundary_file.cpp
     city_file.cpp
     dem.cpp
@@ -18,7 +19,6 @@ add_executable(splat
     json.cpp
     lrp.cpp
     main.cpp
-    pat_file.cpp
     path.cpp
     imagewriter.cpp
     image.cpp

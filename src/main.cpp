@@ -11,6 +11,7 @@
  */
 
 #include "anf.h"
+#include "antenna_pattern.h"
 #include "boundary_file.h"
 #include "city_file.h"
 #include "dem.h"
@@ -20,7 +21,6 @@
 #include "itwom3.0.h"
 #include "kml.h"
 #include "lrp.h"
-#include "pat_file.h"
 #include "path.h"
 #include "region.h"
 #include "report.h"
@@ -742,14 +742,14 @@ int main(int argc, const char *argv[]) {
 	
         // TODO: Here's an instance where reading the LRParms may say to load
         // a PAT file but it's never used. Refactor this.
-        PatFile pat = PatFile();
+        AntennaPattern pat = AntennaPattern();
 
         // TODO: Why only the first TX site?
         bool loadPat;
         string patFilename;
         lrp.ReadLRParm(tx_site[0], 0, loadPat, patFilename); /* Get ERP status */
         if (loadPat) {
-            pat.LoadPAT(patFilename);
+            pat.LoadAntennaPattern(patFilename);
         }
         Anf anf(lrp, sr);
 
@@ -1037,7 +1037,7 @@ int main(int argc, const char *argv[]) {
                 oss << "-" << x + 1;
             oss << "." << ext;
 
-            PatFile pat;
+            AntennaPattern pat;
             if (!sr.nositereports) {
                 filename = longley_file + oss.str();
                 bool longly_file_exists = !longley_file.empty();
@@ -1047,7 +1047,7 @@ int main(int argc, const char *argv[]) {
                 lrp.ReadLRParm(tx_site[x], longly_file_exists, loadPat,
                                patFilename);
                 if (loadPat) {
-                    pat.LoadPAT(patFilename);
+                    pat.LoadAntennaPattern(patFilename);
                 }
                 report.PathReport(tx_site[x], rx_site, filename,
                                   longly_file_exists, elev, pat, lrp);
@@ -1056,7 +1056,7 @@ int main(int argc, const char *argv[]) {
                 string patFilename;
                 lrp.ReadLRParm(tx_site[x], 1, loadPat, patFilename);
                 if (loadPat) {
-                    pat.LoadPAT(patFilename);
+                    pat.LoadAntennaPattern(patFilename);
                 }
                 report.PathReport(tx_site[x], rx_site, filename, true, elev,
                                   pat, lrp);
@@ -1085,7 +1085,7 @@ int main(int argc, const char *argv[]) {
     if (sr.area_mode && !sr.topomap) {
         // Allocate the antenna pattern on the heap because it has a huge array
         // of floats that would otherwise be on the stack.
-        PatFile *p_pat = new PatFile();
+        AntennaPattern *p_pat = new AntennaPattern();
         for (x = 0; x < tx_site.size(); x++) {
 
             if (sr.coverage) {
@@ -1095,12 +1095,11 @@ int main(int argc, const char *argv[]) {
                 string patFilename;
                 char flag = lrp.ReadLRParm(tx_site[x], 1, loadPat, patFilename);
                 if (loadPat) {
-                    p_pat->LoadPAT(patFilename);
+                    p_pat->LoadAntennaPattern(patFilename);
                 }
 
                 if (flag) {
-                    em_p->PlotLRMap(tx_site[x], sr.altitudeLR, ano_filename,
-                                    *p_pat, lrp);
+                    em_p->PlotLRMap(tx_site[x], sr.altitudeLR, ano_filename, *p_pat, lrp);
                 }
             }
 
