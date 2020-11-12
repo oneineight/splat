@@ -12,6 +12,7 @@
 #define splat_run_h
 
 #include <string>
+#include <iostream>
 
 #include "imagewriter.h"
 #include "site.h"
