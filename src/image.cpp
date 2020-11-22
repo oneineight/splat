@@ -351,7 +351,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
 		break;
 	case MAPTYPE_DBUVM:
 		region.LoadSignalColors(xmtr[0]);
-		description = "Electric Field Strength (dBuv/m)";
+		description = "Electric Field Strength (dBuV/m)";
 		break;
 	case MAPTYPE_PATHLOSS:
 		region.LoadLossColors(xmtr[0]);
@@ -470,7 +470,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
                     blue = 0;
 
 					if(maptype != MAPTYPE_PATHLOSS) {
-						// normal way
+						// for dBm and dBuV/m output
 						if (signal >= region.level[0]) {
 							match = 0;
 						} else {

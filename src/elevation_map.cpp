@@ -1304,8 +1304,7 @@ void ElevationMap::PlotLRPath(const Site &source, const Site &destination,
                                     "%.2f", loss);
             }
 
-            /* Integrate the antenna's radiation
-               pattern into the overall path loss. */
+            /* Substract the antenna's (log) gain from the overall path loss. */
 
             x = (int)rint(10.0 * (10.0 - elevation));
 

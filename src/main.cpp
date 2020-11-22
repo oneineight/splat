@@ -19,6 +19,7 @@
 #include "gnuplot.h"
 #include "image.h"
 #include "itwom3.0.h"
+#include "json.h"
 #include "kml.h"
 #include "lrp.h"
 #include "path.h"
@@ -39,7 +40,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <iostream>
 #include <bits/stdc++.h>
 
 using namespace std;
@@ -1111,7 +1111,7 @@ int main(int argc, const char *argv[]) {
     if (sr.map || sr.topomap) {
         /* Label the map */
 
-        if (!sr.kml) {
+        if (!(sr.kml || sr.imagetype == IMAGETYPE_GEOTIFF)) {
             for (x = 0; x < tx_site.size(); x++)
                 em_p->PlaceMarker(tx_site[x]);
         }
@@ -1170,6 +1170,35 @@ int main(int argc, const char *argv[]) {
     }
 
     cout << endl;
+    
+    /* json input/output must be somewhere else, but this is how it goes: 
+    //================
+    arg_t args;
+	
+	string curr_arg = "";
+	int curr_arg_i = 0;
+	for(int i=0; i<argc; i++) {		// step through argv[] array
+		string arg = argv[i];
+		if(arg.find("-") == 0) {	// check if current argument has leading "-"
+			curr_arg = arg.erase(0,1);	// remove leading "-" and save as new array entry
+			curr_arg_i = i;		// save position for multiple parameters
+			args[curr_arg] = "";
+		} else {
+			if (curr_arg != "") {
+				if(i == (curr_arg_i + 1)) {
+					args[curr_arg] = arg;	// if no "-" was found the current argument is considered as a value to the previous argument
+				} else {
+					args[curr_arg] += " " + arg;	// if no "-" was found the current argument is considered as a value to the previous argument
+				}
+			}
+		}
+	}
+	// end argv[] reading
+	
+    Json json(*em_p, sr);
+    json.WriteJSON(args, tx_site[0], lrp, mapfile);
+    //=====================
+    */
 
     /* That's all, folks! */
 

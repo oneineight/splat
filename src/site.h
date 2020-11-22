@@ -14,7 +14,7 @@
 #include <string>
 
 /**
- Represents a site (a location having a lattitude, longitude, and altitude).
+ Represents a site (a location having a latitude, longitude, and altitude).
  */
 class Site {
   public:

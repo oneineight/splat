@@ -321,6 +321,7 @@ void AntennaPattern::LoadAntennaPattern(const string &filename) {
     
     char antenna_name[60];
     
+    /* DEBUG: output 2D antenna pattern as csv file */
     //sprintf(antenna_name, "antennafile.csv");
     //ofstream antennafile(antenna_name);
 
