@@ -40,7 +40,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <bits/stdc++.h>
 
 using namespace std;
 
