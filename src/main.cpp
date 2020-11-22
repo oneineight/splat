@@ -179,7 +179,7 @@ int main(int argc, const char *argv[]) {
                "SPLAT! execution\n"
                "   -itwom invoke the ITWOM model instead of using "
                "Longley-Rice\n"
-               "  -metric employ metric rather than imperial units for all "
+               "  -imperial employ imperial rather than metric units for all "
                "user I/O\n"
                "-maxpages ["
             << sr.maxpages
@@ -392,8 +392,8 @@ int main(int argc, const char *argv[]) {
         }
 #endif
 
-        if (strcmp(argv[x], "-metric") == 0)
-            sr.metric = true;
+        if (strcmp(argv[x], "-imperial") == 0)
+            sr.metric = false;
 
         if (strcmp(argv[x], "-gpsav") == 0)
             sr.gpsav = true;
@@ -685,7 +685,7 @@ int main(int argc, const char *argv[]) {
 
     /* No major errors were detected.  Whew!  :-) */
 
-    /* Adjust input parameters if -metric option is used */
+    /* Adjust input parameters if -imperial option is not used */
 
     if (sr.metric) {
         sr.altitudeLR /= METERS_PER_FOOT; /* meters --> feet */

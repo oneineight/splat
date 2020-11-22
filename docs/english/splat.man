@@ -68,7 +68,7 @@ splat
 .br
 [-gpsav]
 .br
-[-metric]
+[-imperial]
 .br
 [-olditm]
 .SH DESCRIPTION
@@ -460,7 +460,7 @@ line will return a summary of \fBSPLAT!\fP's command line options:
 .br
  -gpsav preserve gnuplot temporary working files after SPLAT! execution
 .br
--metric employ metric rather than imperial units for all user I/O
+-imperial employ imperial rather than metric units for all user I/O
 .br
 -olditm invoke older ITM propagation model rather than the newer ITWOM
 .br
@@ -491,10 +491,10 @@ obstructions detected along the line-of-sight path.  If an obstruction
 can be cleared by raising the receive antenna to a greater altitude,
 \fBSPLAT!\fP will indicate the minimum antenna height required for a
 line-of-sight path to exist between the transmitter and receiver locations
-specified.  Note that imperial units (miles, feet) are specified unless
-the \fI-metric\fP switch is added to \fBSPLAT!\fP's command line options:
+specified.  Note that metric units (kilometers, meters) are specified unless
+the \fI-imperial\fP switch is added to \fBSPLAT!\fP's command line options:
 .PP
-\fCsplat -t tx_site.qth -r rx_site.qth -metric\fR
+\fCsplat -t tx_site.qth -r rx_site.qth -imperial\fR
 .PP
 If the antenna must be raised a significant amount, this determination
 may take a few moments.  Note that the results provided are the \fIminimum\fP
@@ -584,8 +584,8 @@ A graph showing ITM path loss may be plotted using the \fI-l\fP switch:
 .PP
 \fCsplat -t tx_site -r rx_site -l path_loss_profile.png\fR
 .PP
-As before, adding the \fI-metric\fP switch forces the graphs to
-be plotted using metric units of measure.  The \fI-gpsav\fP switch
+As before, adding the \fI-imperial\fP switch forces the graphs to
+be plotted using imperial units of measure.  The \fI-gpsav\fP switch
 instructs \fBSPLAT!\fP to preserve (rather than delete) the \fBgnuplot\fP
 working files generated during \fBSPLAT!\fP execution, allowing the user
 to edit these files and re-run \fBgnuplot\fP if desired. 
@@ -733,9 +733,9 @@ performed by \fBSPLAT!\fP using the \fI-c\fP switch as follows:
 In this example, \fBSPLAT!\fP generates a topographic map called
 \fItx_coverage.ppm\fP that illustrates the predicted line-of-sight
 regional coverage of \fItx_site\fP to receiving locations having
-antennas 30.0 feet above ground level (AGL).  If the \fI-metric\fP
+antennas 30.0 feet above ground level (AGL).  If the \fI-imperial\fP
 switch is used, the argument following the \fI-c\fP switch is
-interpreted as being in meters rather than in feet.  The contents
+interpreted as being in feet rather than in meters.  The contents
 of \fIcities.dat\fP are plotted on the map, as are the cartographic
 boundaries contained in the file \fIco34_d00.dat\fP.
 .PP
@@ -762,7 +762,7 @@ average terrain calculated toward the bearings of 0, 45, 90, 135,
 many as four separate transmitter sites on a common topographic map.
 For example:
 .PP
-\fCsplat -t site1 site2 site3 site4 -c 10.0 -metric -o network.ppm\fR
+\fCsplat -t site1 site2 site3 site4 -c 10.0 -imperial -o network.ppm\fR
 .PP
 plots the regional line-of-sight coverage of site1, site2, site3,
 and site4 based on a receive antenna located 10.0 meters above ground
@@ -838,8 +838,8 @@ The path loss contour threshold may be expressed as either a positive or
 negative quantity.
 .PP
 The path loss analysis range may be modified to a user-specific
-distance using the \fI-R\fP switch.  The argument must be given in miles
-(or kilometers if the \fI-metric\fP switch is used).  If a range wider
+distance using the \fI-R\fP switch.  The argument must be given in kilometers
+(or miles if the \fI-imperial\fP switch is used).  If a range wider
 than the generated topographic map is specified, \fBSPLAT!\fP will
 perform ITM path loss calculations between all four corners of the
 area prediction map.
@@ -1425,7 +1425,7 @@ The height of ground clutter can be specified using the \fI-gc\fP switch:
 \fR
 .PP
 The \fI-gc\fP switch as the effect of raising the overall terrain by the
-specified amount in feet (or meters if the \fI-metric\fP switch is invoked),
+specified amount in meters (or feet if the \fI-imperial\fP switch is invoked),
 except over areas at sea-level and at the transmitting and receiving
 antenna locations.
 .SH SIMPLE TOPOGRAPHIC MAP GENERATION
@@ -1449,8 +1449,8 @@ can be used:
 .PP
 \fCsplat -t tx_site -R 50.0 -s NJ_Cities -b NJ_Counties -o topo_map.ppm\fR
 .PP
-where -R specifies the minimum radius of the map in miles (or kilometers
-if the \fI-metric\fP switch is used).  Note that the tx_site name and
+where -R specifies the minimum radius of the map in kilometers (or miles
+if the \fI-imperial\fP switch is used).  Note that the tx_site name and
 location are not displayed in this example.  If display of this information
 is desired, simply create a \fBSPLAT!\fP city file (\fI-s\fP option) and
 append it to the list of command-line options illustrated above.
