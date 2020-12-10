@@ -619,7 +619,8 @@ int main(int argc, const char *argv[]) {
     }
     
     /* check if the output map should have a bottom legend */
-    if (sr.kml || sr.geo || (sr.imagetype == IMAGETYPE_GEOTIFF)) {
+    // TODO: PVW: LOS maps don't use a legend. Does sr.coverage detect those correctly?
+    if (sr.kml || sr.geo || (sr.imagetype == IMAGETYPE_GEOTIFF) || sr.coverage) {
 		sr.bottom_legend = false;
 	} else {
 		sr.bottom_legend = true;
@@ -731,7 +732,6 @@ int main(int argc, const char *argv[]) {
     check_allocation(em_p, "em_p", sr);
 
     Lrp lrp(sr.forced_erp, sr.forced_freq);
-    Image image(sr, mapfile, tx_site, *em_p);
     BoundaryFile bf(sr);
     CityFile cf;
     Region region;
@@ -776,6 +776,7 @@ int main(int argc, const char *argv[]) {
             fflush(stdout);
         }
 
+        Image image(sr, mapfile, tx_site, *em_p);
         if (lrp.erp == 0.0) {
             image.WriteCoverageMap(MAPTYPE_PATHLOSS, sr.imagetype, region);
         } else {
@@ -1138,9 +1139,11 @@ int main(int argc, const char *argv[]) {
         }
 
         /* Plot the map */
+        Image image(sr, mapfile, tx_site, *em_p);
         if (sr.coverage || sr.pt2pt_mode || sr.topomap) {
-            //image.WriteCoverageMap(MAPTYPE_LOS, sr.imagetype, region);
-            image.WriteImage(sr.imagetype);
+            image.WriteCoverageMap(MAPTYPE_LOS, sr.imagetype, region);
+            // TODO: PVW: Remove commented out line
+            //image.WriteImage(sr.imagetype);
         } else {
             if (lrp.erp == 0.0)
                 image.WriteCoverageMap(MAPTYPE_PATHLOSS, sr.imagetype, region);

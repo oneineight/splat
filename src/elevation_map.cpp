@@ -667,7 +667,8 @@ void ElevationMap::PlotPath(const Site &source, const Site &destination,
  * and plots the line-of-sight coverage of the transmitter on the SPLAT!
  * generated topographic map based on a receiver located at the specified
  * altitude (in feet AGL). Results are stored in memory, and written out in the
- * form of a topographic map when the WriteImage() function is later invoked.
+ * form of a topographic map when the WriteCoverageMap() function is later
+ * invoked.
  */
 void ElevationMap::PlotLOSMap(const Site &source, double altitude) {
     int y, z, count;
@@ -883,7 +884,7 @@ void ElevationMap::PlotLOSMap(const Site &source, double altitude) {
  * and plots the ITM/ITWOM attenuation on the SPLAT! generated topographic map
  * based on a receiver located at the specified altitude (in feet AGL).  Results
  * are stored in memory, and written out in the form of a topographic map when
- * the WriteImageLR() or WriteImageSS() functions are later invoked.
+ * the WriteCoverageMap() function is later invoked.
  */
 void ElevationMap::PlotLRMap(const Site &source, double altitude,
                              const string &plo_filename, const AntennaPattern &pat,

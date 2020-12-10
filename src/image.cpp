@@ -54,210 +54,543 @@ using namespace std;
 #define COLOR_WHITE RGB(255, 255, 255)
 #define COLOR_BLACK RGB(0, 0, 0)
 
-/* Generates a topographic map image based on logarithmically scaled
- * topology data as well as the content of flags held in the mask[][] array.
- * The image created is rotated counter-clockwise 90 degrees from its
- * representation in em.dem[][] so that north points up and east points right.
- */
-void Image::WriteImage(ImageType imagetype) {
-    string basename, mapfile, geofile, kmlfile, suffix;
-#if DO_KMZ
-    string kmzfile;
-#endif
-    unsigned char mask;
-    unsigned width, height, terrain;
-    int x0 = 0, y0 = 0;
-    const Dem *dem = NULL;
-    double conversion, one_over_gamma, north, south, east, west, minwest;
-    FILE *fd;
+Image::Image(const SplatRun &sr, std::string &filename,
+      const std::vector<Site> &xmtr, const ElevationMap &em)
+    :
+sr(sr),
+em(em),
+filename(filename),
+xmtr(xmtr),
+conversion(255.0 / pow((double)(em.max_elevation - em.min_elevation), one_over_gamma))
+{}
 
-    Pixel pixel = 0;
-
-    one_over_gamma = 1.0 / GAMMA;
-    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation), one_over_gamma);
-
-    width =  (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
-    height = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_north - em.min_north));
-
-    switch (imagetype) {
-    default:
-#ifdef HAVE_LIBPNG
-    case IMAGETYPE_PNG:
-        suffix = ".png";
-        break;
-#endif
-#ifdef HAVE_LIBJPEG
-    case IMAGETYPE_JPG:
-        suffix = ".jpg";
-        break;
-#endif
-#ifdef HAVE_LIBGDAL
-    case IMAGETYPE_GEOTIFF:
-        suffix = ".tif";
-        break;
-#endif
-    case IMAGETYPE_PPM:
-        suffix = ".ppm";
-        break;
+Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, int y0) {
+    
+    unsigned int red, green, blue, terrain;
+    
+    if (dem == NULL) {
+        return COLOR_BLACK;
     }
-
-    if (filename.empty()) {
-        basename = Utilities::Basename(xmtr[0].filename);
-        filename = basename + suffix;
+    
+    unsigned char mask = dem->mask[x0 * sr.ippd + y0];
+    
+    /* Note: The array dem->signal holds a scaled value depending
+     * on the type that is unscaled again in the following.
+     * See function PlotLRPath() in elevation_map.cpp
+     */
+    int signal;
+    if(maptype == MAPTYPE_DBM) {
+        // signal contains the power level in dBm
+        signal = (dem->signal[x0 * sr.ippd + y0]) - 200;
+    } else if(maptype == MAPTYPE_DBUVM) {
+        // signal contains the power level in dBuV/m
+        signal = (dem->signal[x0 * sr.ippd + y0]) - 100;
+    } else if(maptype == MAPTYPE_PATHLOSS) {
+        // signal contains the path loss in dB
+        signal = (dem->signal[x0 * sr.ippd + y0]);
+    }
+    
+    int match = 255;
+    
+    red = 0;
+    green = 0;
+    blue = 0;
+    
+    if(maptype != MAPTYPE_PATHLOSS) {
+        // for dBm and dBuV/m output
+        if (signal >= region.level[0]) {
+            match = 0;
+        } else {
+            for (int z = 1; (z < region.levels && match == 255); z++) {
+                if (signal < region.level[z - 1] && signal >= region.level[z]) {
+                    match = z;
+                }
+            }
+        }
+        
+        if (match < region.levels) {
+            if (sr.smooth_contours && match > 0) {
+                red = (unsigned)Utilities::interpolate(
+                                                       region.color[match][0],
+                                                       region.color[match - 1][0], region.level[match],
+                                                       region.level[match - 1], signal);
+                green = (unsigned)Utilities::interpolate(
+                                                         region.color[match][1],
+                                                         region.color[match - 1][1], region.level[match],
+                                                         region.level[match - 1], signal);
+                blue = (unsigned)Utilities::interpolate(
+                                                        region.color[match][2],
+                                                        region.color[match - 1][2], region.level[match],
+                                                        region.level[match - 1], signal);
+            } else {
+                red = region.color[match][0];
+                green = region.color[match][1];
+                blue = region.color[match][2];
+            }
+        }
+        
     } else {
-        basename = Utilities::Basename(filename);
+        // PathLoss is calculated differently from dBm and dBuV/m
+        if (signal <= region.level[0]) {
+            match = 0;
+        } else {
+            for (int z = 1; (z < region.levels && match == 255); z++) {
+                if (signal >= region.level[z - 1] && signal < region.level[z]) {
+                    match = z;
+                }
+            }
+        }
+        
+        if (match < region.levels) {
+            if (sr.smooth_contours && match > 0) {
+                red = (unsigned)Utilities::interpolate(
+                                                       region.color[match - 1][0],
+                                                       region.color[match][0], region.level[match - 1],
+                                                       region.level[match], signal);
+                green = (unsigned)Utilities::interpolate(
+                                                         region.color[match - 1][1],
+                                                         region.color[match][1], region.level[match - 1],
+                                                         region.level[match], signal);
+                blue = (unsigned)Utilities::interpolate(
+                                                        region.color[match - 1][2],
+                                                        region.color[match][2], region.level[match - 1],
+                                                        region.level[match], signal);
+            } else {
+                red = region.color[match][0];
+                green = region.color[match][1];
+                blue = region.color[match][2];
+            }
+        }
     }
+    
+    Pixel pixel;
+    
+    if (mask & 2) {
+        /* Text Labels: Red or otherwise */
+        
+        if (red >= 180 && green <= 75 && blue <= 75 && signal != 0) {
+            pixel = RGB(255 ^ red, 255 ^ green, 255 ^ blue);
+        } else {
+            pixel = COLOR_RED;
+        }
+    } else if (mask & 4) {
+        /* County Boundaries: Black */
+        pixel = COLOR_BLACK;
+    } else {
+        switch (maptype)
+        {
+            case MAPTYPE_PATHLOSS:
+                // different for PathLoss
+                  if (signal == 0 || (sr.contour_threshold != 0 && signal > abs(sr.contour_threshold))) {
+                      if (sr.ngs) {
+                          /* No terrain */
+                          pixel = COLOR_WHITE;
+                      } else {
+                          /* Display land or sea elevation */
+                          if (dem->data[x0 * sr.ippd + y0] == 0) {
+                              pixel = COLOR_MEDIUMBLUE;
+                          } else {
+                              terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
+                              pixel = RGB(terrain, terrain, terrain);
+                          }
+                      }
+                  } else {
+                      /* Plot signal level regions in color */
+                      if (red != 0 || green != 0 || blue != 0) {
+                          pixel = RGB(red, green, blue);
+                      } else { /* terrain / sea-level */
+                          if (dem->data[x0 * sr.ippd + y0] == 0) {
+                              pixel = COLOR_MEDIUMBLUE;
+                          } else {
+                              /* Elevation: Greyscale */
+                              terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
+                              pixel = RGB(terrain, terrain, terrain);
+                          }
+                      }
+                  }
+                break;
+            case MAPTYPE_LOS:
+                 switch (mask & 57) {
+                     case 1:
+                         /* TX1: Green */
+                         pixel = COLOR_GREEN;
+                         break;
 
-    mapfile = basename + suffix;
-    geofile = basename + ".geo";
-    kmlfile = basename + ".kml";
+                     case 8:
+                         /* TX2: Cyan */
+                         pixel = COLOR_CYAN;
+                         break;
 
-#if DO_KMZ
-    kmzfile = basename + ".kmz";
-#endif
+                     case 9:
+                         /* TX1 + TX2: Yellow */
+                         pixel = COLOR_YELLOW;
+                         break;
 
-    minwest = ((double)em.min_west) + sr.dpp;
+                     case 16:
+                         /* TX3: Medium Violet */
+                         pixel = COLOR_MEDIUMVIOLET;
+                         break;
 
-    if (minwest > 360.0)
-        minwest -= 360.0;
+                     case 17:
+                         /* TX1 + TX3: Pink */
+                         pixel = COLOR_PINK;
+                         break;
 
-    north = (double)em.max_north - sr.dpp;
-    south = (double)em.min_north;
-    east = (minwest < 180.0 ? -minwest : 360.0 - em.min_west);
-    west = (double)(em.max_west < 180 ? -em.max_west : 360 - em.max_west);
+                     case 24:
+                         /* TX2 + TX3: Orange */
+                         pixel = COLOR_ORANGE;
+                         break;
 
-    if (!sr.kml && sr.geo) {
-        WriteGeo(geofile, mapfile, north, south, east, west, width, height);
-    }
+                     case 25:
+                         /* TX1 + TX2 + TX3: Dark Green */
+                         pixel = COLOR_DARKGREEN;
+                         break;
 
-    if (sr.kml && !sr.geo) {
-        WriteKmlForImage(SplatRun::splat_name + " Line-of-Sight Contour","Line-of-Sight Contour", false, kmlfile, mapfile, north, south, east, west, "");
-    }
+                     case 32:
+                         /* TX4: Sienna 1 */
+                         pixel = COLOR_SIENNA;
+                         break;
 
-    fd = fopen(mapfile.c_str(), "wb");
+                     case 33:
+                         /* TX1 + TX4: Green Yellow */
+                         pixel = COLOR_GREENYELLOW;
+                         break;
 
-    fprintf(fd, "P6\n%u %u\n255\n", width, height);
-    fprintf(stdout, "\nWriting \"%s\" (%ux%u pixmap image)... ", mapfile.c_str(), width, height);
-    fflush(stdout);
+                     case 40:
+                         /* TX2 + TX4: Dark Sea Green 1 */
+                         pixel = COLOR_DARKSEAGREEN1;
+                         break;
 
-    try {
-        ImageWriter iw = ImageWriter(mapfile, imagetype, width, height, north, south, east, west);
+                     case 41:
+                         /* TX1 + TX2 + TX4: Blanched Almond */
+                         pixel = COLOR_BLANCHEDALMOND;
+                         break;
 
-        for (int y = 0, lat = north; y < (int)height; y++, lat = north - (sr.dpp * (double)y)) {
-            for (int x = 0, lon = em.max_west; x < (int)width; x++, lon = (double)em.max_west - (sr.dpp * (double)x)) {
-                if (lon < 0.0)
-                    lon += 360.0;
+                     case 48:
+                         /* TX3 + TX4: Dark Turquoise */
+                         pixel = COLOR_DARKTURQUOISE;
+                         break;
 
-                dem = em.FindDEM(lat, lon, x0, y0);
-                if (dem) {
-                    mask = dem->mask[x0 * sr.ippd + y0];
+                     case 49:
+                         /* TX1 + TX3 + TX4: Medium Spring Green */
+                         pixel = COLOR_MEDIUMSPRINGGREEN;
+                         break;
 
-                    if (mask & 2)
-                        /* Text Labels: Red */
-                        pixel = COLOR_RED;
+                     case 56:
+                         /* TX2 + TX3 + TX4: Tan */
+                         pixel = COLOR_TAN;
+                         break;
 
-                    else if (mask & 4)
-                        /* County Boundaries: Light Cyan */
-                        pixel = COLOR_LIGHTCYAN;
+                     case 57:
+                         /* TX1 + TX2 + TX3 + TX4: Gold2 */
+                         pixel = COLOR_GOLD2;
+                         break;
 
-                    else
-                        switch (mask & 57) {
-                        case 1:
-                            /* TX1: Green */
-                            pixel = COLOR_GREEN;
-                            break;
-
-                        case 8:
-                            /* TX2: Cyan */
-                            pixel = COLOR_CYAN;
-                            break;
-
-                        case 9:
-                            /* TX1 + TX2: Yellow */
-                            pixel = COLOR_YELLOW;
-                            break;
-
-                        case 16:
-                            /* TX3: Medium Violet */
-                            pixel = COLOR_MEDIUMVIOLET;
-                            break;
-
-                        case 17:
-                            /* TX1 + TX3: Pink */
-                            pixel = COLOR_PINK;
-                            break;
-
-                        case 24:
-                            /* TX2 + TX3: Orange */
-                            pixel = COLOR_ORANGE;
-                            break;
-
-                        case 25:
-                            /* TX1 + TX2 + TX3: Dark Green */
-                            pixel = COLOR_DARKGREEN;
-                            break;
-
-                        case 32:
-                            /* TX4: Sienna 1 */
-                            pixel = COLOR_SIENNA;
-                            break;
-
-                        case 33:
-                            /* TX1 + TX4: Green Yellow */
-                            pixel = COLOR_GREENYELLOW;
-                            break;
-
-                        case 40:
-                            /* TX2 + TX4: Dark Sea Green 1 */
-                            pixel = COLOR_DARKSEAGREEN1;
-                            break;
-
-                        case 41:
-                            /* TX1 + TX2 + TX4: Blanched Almond */
-                            pixel = COLOR_BLANCHEDALMOND;
-                            break;
-
-                        case 48:
-                            /* TX3 + TX4: Dark Turquoise */
-                            pixel = COLOR_DARKTURQUOISE;
-                            break;
-
-                        case 49:
-                            /* TX1 + TX3 + TX4: Medium Spring Green */
-                            pixel = COLOR_MEDIUMSPRINGGREEN;
-                            break;
-
-                        case 56:
-                            /* TX2 + TX3 + TX4: Tan */
-                            pixel = COLOR_TAN;
-                            break;
-
-                        case 57:
-                            /* TX1 + TX2 + TX3 + TX4: Gold2 */
-                            pixel = COLOR_GOLD2;
-                            break;
-
-                        default:
-                            if (sr.ngs) /* No terrain */
+                     default:
+                         if (sr.ngs) /* No terrain */
+                             pixel = COLOR_MEDIUMBLUE;
+                         else {
+                             /* Sea-level: Medium Blue */
+                             if (dem->data[x0 * sr.ippd + y0] == 0)
+                                 pixel = COLOR_MEDIUMBLUE;
+                             else {
+                                 /* Elevation: Greyscale */
+                                 terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
+                                 pixel = RGB(terrain, terrain, terrain);
+                             }
+                         }
+                     }
+                break;
+            default:
+                if (sr.contour_threshold != 0 && signal < sr.contour_threshold) {
+                    if (sr.ngs) {
+                        /* No terrain */
+                        pixel = COLOR_WHITE;
+                    } else {
+                        /* Display land or sea elevation */
+                        if (dem->data[x0 * sr.ippd + y0] == 0) {
+                            pixel = COLOR_MEDIUMBLUE;
+                        } else {
+                            terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
+                            pixel = RGB(terrain, terrain, terrain);
+                        }
+                    }
+                } else {
+                    /* Plot signal level regions in color */
+                    if (red != 0 || green != 0 || blue != 0) {
+                        pixel = RGB(red, green, blue);
+                    }
+                    else /* terrain / sea-level */
+                    {
+                        if (sr.ngs) {
+                            pixel = COLOR_WHITE;
+                        } else {
+                            if (dem->data[x0 * sr.ippd + y0] == 0) {
                                 pixel = COLOR_MEDIUMBLUE;
-                            else {
-                                /* Sea-level: Medium Blue */
-                                if (dem->data[x0 * sr.ippd + y0] == 0)
-                                    pixel = COLOR_MEDIUMBLUE;
-                                else {
-                                    /* Elevation: Greyscale */
-                                    terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-                                    pixel = RGB(terrain, terrain, terrain);
-                                }
+                            } else {
+                                /* Elevation: Greyscale */
+                                terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
+                                pixel = RGB(terrain, terrain, terrain);
                             }
                         }
+                    }
                 }
+                // We assume the map type is MAPTYPE_DBM or MAPTYPE_DBUVM
+                break;
+        }
+    }
 
+    return pixel;
+}
+
+int Image::GetIndexForColorKeyImageFile(MapType maptype, Region &region, int x0, int y0) {
+    int level, hundreds, tens, units;
+    int indx = y0 / 30;
+    int x = x0;
+    
+    if(maptype == MAPTYPE_DBM) {
+        level = abs(region.level[indx]);
+        
+        hundreds = level / 100;
+        
+        if (hundreds > 0)
+            level -= (hundreds * 100);
+        
+        tens = level / 10;
+        
+        if (tens > 0)
+            level -= (tens * 10);
+        
+        units = level;
+        
+        if ((y0 % 30) >= 8 && (y0 % 30) <= 23) {
+            if (hundreds > 0) {
+                if (region.level[indx] < 0) {
+                    if (x >= 5 && x <= 12)
+                        if (fontdata[16 * ('-') + ((y0 % 30) - 8)] &
+                            (128 >> (x - 5)))
+                            indx = 255;
+                }
+                
                 else {
-                    /* We should never get here, but if */
-                    /* we do, display the region as black */
+                    if (x >= 5 && x <= 12)
+                        if (fontdata[16 * ('+') + ((y0 % 30) - 8)] &
+                            (128 >> (x - 5)))
+                            indx = 255;
+                }
+                
+                if (x >= 13 && x <= 20)
+                    if (fontdata[16 * (hundreds + '0') +
+                                 ((y0 % 30) - 8)] &
+                        (128 >> (x - 13)))
+                        indx = 255;
+            }
+            
+            if (tens > 0 || hundreds > 0) {
+                if (hundreds == 0) {
+                    if (region.level[indx] < 0) {
+                        if (x >= 13 && x <= 20)
+                            if (fontdata[16 * ('-') +
+                                         ((y0 % 30) - 8)] &
+                                (128 >> (x - 13)))
+                                indx = 255;
+                    }
+                    
+                    else {
+                        if (x >= 13 && x <= 20)
+                            if (fontdata[16 * ('+') +
+                                         ((y0 % 30) - 8)] &
+                                (128 >> (x - 13)))
+                                indx = 255;
+                    }
+                }
+                
+                if (x >= 21 && x <= 28)
+                    if (fontdata[16 * (tens + '0') +
+                                 ((y0 % 30) - 8)] &
+                        (128 >> (x - 21)))
+                        indx = 255;
+            }
+            
+            if (hundreds == 0 && tens == 0) {
+                if (region.level[indx] < 0) {
+                    if (x >= 21 && x <= 28)
+                        if (fontdata[16 * ('-') + ((y0 % 30) - 8)] &
+                            (128 >> (x - 21)))
+                            indx = 255;
+                }
+                
+                else {
+                    if (x >= 21 && x <= 28)
+                        if (fontdata[16 * ('+') + ((y0 % 30) - 8)] &
+                            (128 >> (x - 21)))
+                            indx = 255;
+                }
+            }
+            
+            if (x >= 29 && x <= 36)
+                if (fontdata[16 * (units + '0') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 29)))
+                    indx = 255;
+            
+            if (x >= 37 && x <= 44)
+                if (fontdata[16 * ('d') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 37)))
+                    indx = 255;
+            
+            if (x >= 45 && x <= 52)
+                if (fontdata[16 * ('B') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 45)))
+                    indx = 255;
+            
+            if (x >= 53 && x <= 60)
+                if (fontdata[16 * ('m') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 53)))
+                    indx = 255;
+        }
+    } // end dBm
+    
+    else if(maptype == MAPTYPE_DBUVM) {
+        level = region.level[indx];
+        
+        hundreds = level / 100;
+        
+        if (hundreds > 0)
+            level -= (hundreds * 100);
+        
+        tens = level / 10;
+        
+        if (tens > 0)
+            level -= (tens * 10);
+        
+        units = level;
+        
+        if ((y0 % 30) >= 8 && (y0 % 30) <= 23) {
+            if (hundreds > 0) {
+                if (x >= 5 && x <= 12)
+                    if (fontdata[16 * (hundreds + '0') +
+                                 ((y0 % 30) - 8)] &
+                        (128 >> (x - 5)))
+                        indx = 255;
+            }
+            
+            if (tens > 0 || hundreds > 0) {
+                if (x >= 13 && x <= 20)
+                    if (fontdata[16 * (tens + '0') +
+                                 ((y0 % 30) - 8)] &
+                        (128 >> (x - 13)))
+                        indx = 255;
+            }
+            
+            if (x >= 21 && x <= 28)
+                if (fontdata[16 * (units + '0') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 21)))
+                    indx = 255;
+            
+            if (x >= 36 && x <= 43)
+                if (fontdata[16 * ('d') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 36)))
+                    indx = 255;
+            
+            if (x >= 44 && x <= 51)
+                if (fontdata[16 * ('B') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 44)))
+                    indx = 255;
+            
+            if (x >= 52 && x <= 59)
+                if (fontdata[16 * (230) + ((y0 % 30) - 8)] &
+                    (128 >> (x - 52)))
+                    indx = 255;
+            
+            if (x >= 60 && x <= 67)
+                if (fontdata[16 * ('V') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 60)))
+                    indx = 255;
+            
+            if (x >= 68 && x <= 75)
+                if (fontdata[16 * ('/') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 68)))
+                    indx = 255;
+            
+            if (x >= 76 && x <= 83)
+                if (fontdata[16 * ('m') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 76)))
+                    indx = 255;
+        }
+    } // end dBuV/m
+    
+    else if (maptype == MAPTYPE_PATHLOSS) {
+        level = region.level[indx];
+        
+        hundreds = level / 100;
+        
+        if (hundreds > 0)
+            level -= (hundreds * 100);
+        
+        tens = level / 10;
+        
+        if (tens > 0)
+            level -= (tens * 10);
+        
+        units = level;
+        
+        if ((y0 % 30) >= 8 && (y0 % 30) <= 23) {
+            if (hundreds > 0) {
+                if (x >= 11 && x <= 18)
+                    if (fontdata[16 * (hundreds + '0') +
+                                 ((y0 % 30) - 8)] &
+                        (128 >> (x - 11)))
+                        indx = 255;
+            }
+            
+            if (tens > 0 || hundreds > 0) {
+                if (x >= 19 && x <= 26)
+                    if (fontdata[16 * (tens + '0') +
+                                 ((y0 % 30) - 8)] &
+                        (128 >> (x - 19)))
+                        indx = 255;
+            }
+            
+            if (x >= 27 && x <= 34)
+                if (fontdata[16 * (units + '0') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 27)))
+                    indx = 255;
+            
+            if (x >= 42 && x <= 49)
+                if (fontdata[16 * ('d') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 42)))
+                    indx = 255;
+            
+            if (x >= 50 && x <= 57)
+                if (fontdata[16 * ('B') + ((y0 % 30) - 8)] &
+                    (128 >> (x - 50)))
+                    indx = 255;
+        }
+    }
+    
+    return indx;
+}
 
+void Image::WriteColorKeyImageFile(const std::string &ckfile, ImageType imagetype, MapType maptype, Region &region) {
+    unsigned int height = 30 * region.levels;
+    unsigned int width = 100;
+    
+    try {
+        ImageWriter iw = ImageWriter(ckfile, imagetype, width, height,0,0,0,0);
+        
+        for (int y0 = 0; y0 < (int)height; y0++) {
+            for (int x0 = 0; x0 < (int)width; x0++) {
+                int indx = GetIndexForColorKeyImageFile(maptype, region, x0, y0); // end pathloss
+
+                Pixel pixel;
+                if (indx > region.levels) {
                     pixel = COLOR_BLACK;
+                } else {
+                    unsigned int red = region.color[indx][0];
+                    unsigned int green = region.color[indx][1];
+                    unsigned int blue = region.color[indx][2];
+
+                    pixel = RGB(red, green, blue);
                 }
 
                 iw.AppendPixel(pixel);
@@ -265,51 +598,258 @@ void Image::WriteImage(ImageType imagetype) {
 
             iw.EmitLine();
         }
+
         iw.Finish();
     } catch (const std::exception &e) {
-        std::cerr << "Error writing " << mapfile << ": " << e.what() << std::endl;
+        std::cerr << "Error writing " << ckfile << ": " << e.what()
+                  << std::endl;
         return;
     }
+}
 
-#if DO_KMZ
-    if (kml) {
-        bool success = false;
-        struct zip_t *zip = zip_open(kmzfile, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w');
-        if (zip) {
-            /* Pack the KML */
-            if (zip_entry_open(zip, kmlfile) == 0) {
-                if (zip_entry_fwrite(zip, kmlfile) == 0) {
-                    success = true;
+int Image::GetIndexForLegend(int colorwidth, MapType maptype, Region &region, int x0, int y0) {
+    int level, hundreds, tens, units;
+    int indx = x0 / colorwidth;
+    int x = x0 % colorwidth;
+    
+    if(maptype == MAPTYPE_DBM) {
+        level = abs(region.level[indx]);
+        
+        hundreds = level / 100;
+        
+        if (hundreds > 0)
+            level -= (hundreds * 100);
+        
+        tens = level / 10;
+        
+        if (tens > 0)
+            level -= (tens * 10);
+        
+        units = level;
+        
+        if (y0 >= 8 && y0 <= 23) {
+            if (hundreds > 0) {
+                if (region.level[indx] < 0) {
+                    if (x >= 5 && x <= 12)
+                        if (fontdata[16 * ('-') + (y0 - 8)] &
+                            (128 >> (x - 5)))
+                            indx = 255;
                 }
-                zip_entry_close(zip);
-            }
-            /* Pack the map image */
-            if (zip_entry_open(zip, mapfile) == 0) {
-                if (zip_entry_fwrite(zip, mapfile) == 0) {
-                    success = true;
+                
+                else {
+                    if (x >= 5 && x <= 12)
+                        if (fontdata[16 * ('+') + (y0 - 8)] &
+                            (128 >> (x - 5)))
+                            indx = 255;
                 }
-                zip_entry_close(zip);
+                
+                if (x >= 13 && x <= 20)
+                    if (fontdata[16 * (hundreds + '0') + (y0 - 8)] &
+                        (128 >> (x - 13)))
+                        indx = 255;
             }
-            zip_close(zip);
+            
+            if (tens > 0 || hundreds > 0) {
+                if (hundreds == 0) {
+                    if (region.level[indx] < 0) {
+                        if (x >= 13 && x <= 20)
+                            if (fontdata[16 * ('-') + (y0 - 8)] &
+                                (128 >> (x - 13)))
+                                indx = 255;
+                    }
+                    
+                    else {
+                        if (x >= 13 && x <= 20)
+                            if (fontdata[16 * ('+') + (y0 - 8)] &
+                                (128 >> (x - 13)))
+                                indx = 255;
+                    }
+                }
+                
+                if (x >= 21 && x <= 28)
+                    if (fontdata[16 * (tens + '0') + (y0 - 8)] &
+                        (128 >> (x - 21)))
+                        indx = 255;
+            }
+            
+            if (hundreds == 0 && tens == 0) {
+                if (region.level[indx] < 0) {
+                    if (x >= 21 && x <= 28)
+                        if (fontdata[16 * ('-') + (y0 - 8)] &
+                            (128 >> (x - 21)))
+                            indx = 255;
+                }
+                
+                else {
+                    if (x >= 21 && x <= 28)
+                        if (fontdata[16 * ('+') + (y0 - 8)] &
+                            (128 >> (x - 21)))
+                            indx = 255;
+                }
+            }
+            
+            if (x >= 29 && x <= 36)
+                if (fontdata[16 * (units + '0') + (y0 - 8)] &
+                    (128 >> (x - 29)))
+                    indx = 255;
+            
+            if (x >= 37 && x <= 44)
+                if (fontdata[16 * ('d') + (y0 - 8)] &
+                    (128 >> (x - 37)))
+                    indx = 255;
+            
+            if (x >= 45 && x <= 52)
+                if (fontdata[16 * ('B') + (y0 - 8)] &
+                    (128 >> (x - 45)))
+                    indx = 255;
+            
+            if (x >= 53 && x <= 60)
+                if (fontdata[16 * ('m') + (y0 - 8)] &
+                    (128 >> (x - 53)))
+                    indx = 255;
         }
-
-        if (success) {
-            unlink(mapfile);
-            unlink(kmlfile);
-            std::cout << std::endl
-                      << "KMZ file written to: \"" << kmzfile << "\""
-                      << std::endl;
-        } else {
-            unlink(kmzfile);
-            std::cout << std::endl << "Couldn't create KMZ file." << std::endl;
+    } // end dBm
+    
+    else if (maptype == MAPTYPE_DBUVM) {
+        level = region.level[indx];
+        
+        hundreds = level / 100;
+        
+        if (hundreds > 0)
+            level -= (hundreds * 100);
+        
+        tens = level / 10;
+        
+        if (tens > 0)
+            level -= (tens * 10);
+        
+        units = level;
+        
+        
+        if (y0 >= 8 && y0 <= 23) {
+            if (hundreds > 0) {
+                if (x >= 5 && x <= 12)
+                    if (fontdata[16 * (hundreds + '0') + (y0 - 8)] &
+                        (128 >> (x - 5)))
+                        indx = 255;
+            }
+            
+            if (tens > 0 || hundreds > 0) {
+                if (x >= 13 && x <= 20)
+                    if (fontdata[16 * (tens + '0') + (y0 - 8)] &
+                        (128 >> (x - 13)))
+                        indx = 255;
+            }
+            
+            if (x >= 21 && x <= 28)
+                if (fontdata[16 * (units + '0') + (y0 - 8)] &
+                    (128 >> (x - 21)))
+                    indx = 255;
+            
+            if (x >= 36 && x <= 43)
+                if (fontdata[16 * ('d') + (y0 - 8)] &
+                    (128 >> (x - 36)))
+                    indx = 255;
+            
+            if (x >= 44 && x <= 51)
+                if (fontdata[16 * ('B') + (y0 - 8)] &
+                    (128 >> (x - 44)))
+                    indx = 255;
+            
+            if (x >= 52 && x <= 59)
+                if (fontdata[16 * (230) + (y0 - 8)] &
+                    (128 >> (x - 52)))
+                    indx = 255;
+            
+            if (x >= 60 && x <= 67)
+                if (fontdata[16 * ('V') + (y0 - 8)] &
+                    (128 >> (x - 60)))
+                    indx = 255;
+            
+            if (x >= 68 && x <= 75)
+                if (fontdata[16 * ('/') + (y0 - 8)] &
+                    (128 >> (x - 68)))
+                    indx = 255;
+            
+            if (x >= 76 && x <= 83)
+                if (fontdata[16 * ('m') + (y0 - 8)] &
+                    (128 >> (x - 76)))
+                    indx = 255;
         }
-        free(kmzfile);
+    } // end dBuV/m
+    
+    else if(maptype == MAPTYPE_PATHLOSS) {
+        level = region.level[indx];
+        
+        hundreds = level / 100;
+        
+        if (hundreds > 0)
+            level -= (hundreds * 100);
+        
+        tens = level / 10;
+        
+        if (tens > 0)
+            level -= (tens * 10);
+        
+        units = level;
+        
+        if (y0 >= 8 && y0 <= 23) {
+            if (hundreds > 0) {
+                if (x >= 11 && x <= 18)
+                    if (fontdata[16 * (hundreds + '0') + (y0 - 8)] &
+                        (128 >> (x - 11)))
+                        indx = 255;
+            }
+            
+            if (tens > 0 || hundreds > 0) {
+                if (x >= 19 && x <= 26)
+                    if (fontdata[16 * (tens + '0') + (y0 - 8)] &
+                        (128 >> (x - 19)))
+                        indx = 255;
+            }
+            
+            if (x >= 27 && x <= 34)
+                if (fontdata[16 * (units + '0') + (y0 - 8)] &
+                    (128 >> (x - 27)))
+                    indx = 255;
+            
+            if (x >= 42 && x <= 49)
+                if (fontdata[16 * ('d') + (y0 - 8)] &
+                    (128 >> (x - 42)))
+                    indx = 255;
+            
+            if (x >= 50 && x <= 57)
+                if (fontdata[16 * ('B') + (y0 - 8)] &
+                    (128 >> (x - 50)))
+                    indx = 255;
+        }
     }
-#endif
+    
+    return indx;
+}
 
-    fclose(fd);
-    fprintf(stdout, "Done!\n");
-    fflush(stdout);
+void Image::WriteLegend(ImageWriter &iw, MapType maptype, Region &region, unsigned int width) {
+    int colorwidth = (int)rint((float)width / (float)region.levels);
+    
+    for (int y0 = 0; y0 < 30; y0++) {
+        for (int x0 = 0; x0 < (int)width; x0++) {
+            int indx = GetIndexForLegend(colorwidth, maptype, region, x0, y0);
+
+            Pixel pixel;
+            if (indx > region.levels) {
+                pixel = COLOR_BLACK;
+            } else {
+                unsigned int red = region.color[indx][0];
+                unsigned int green = region.color[indx][1];
+                unsigned int blue = region.color[indx][2];
+
+                pixel = RGB(red, green, blue);
+            }
+
+            iw.AppendPixel(pixel);
+        }
+        iw.EmitLine();
+    }
 }
 
 /* Generates a coverage map based on the calculated values held in the
@@ -329,17 +869,10 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
 #if DO_KMZ
     string kmzfile;
 #endif
-    unsigned int width, height, terrain, red, green, blue;
+    unsigned int width, height;
     unsigned int imgheight, imgwidth;
-    unsigned char mask;
-    int indx, x, y, z = 1, x0 = 0, y0 = 0, signal = 0, level, hundreds, tens, units, match, colorwidth;
-    const Dem *dem;
-    double conversion, one_over_gamma, lat, lon, north, south, east, west, minwest;
-    Pixel pixel = 0;
+    double lat, lon, north, south, east, west, minwest;
     FILE *fd;
-
-    one_over_gamma = 1.0 / GAMMA;
-    conversion = 255.0 / pow((double)(em.max_elevation - em.min_elevation), one_over_gamma);
 
     width = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_west - em.min_west));
     height = (unsigned)(sr.ippd * Utilities::ReduceAngle(em.max_north - em.min_north));
@@ -359,8 +892,9 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
 		break;
 	case MAPTYPE_LOS:
 		description = "Line of Sight";
-		cerr << "Not yet implemented! Use Image::WriteImage() instead.";
-		exit(1);
+        // PVW: TODO remove comment
+		//cerr << "Not yet implemented! Use Image::WriteImage() instead.";
+		//exit(1);
 		break;
 	}
 
@@ -427,9 +961,10 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
         WriteGeo(geofile, mapfile, north, south, east, west, width, height);
     }
 
+    // TODO: PVW: Why can't we write both KML and Geo?
     if (sr.kml && (sr.geo == 0)) {
         WriteKmlForImage("SPLAT! " + description + " Contours",
-                         xmtr[0].name + " Transmitter Contours", true, kmlfile,
+                         xmtr[0].name + " Transmitter Contours", sr.bottom_legend, kmlfile,
                          mapfile, north, south, east, west, ckfile);
     }
 
@@ -439,189 +974,16 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
 
     try {
         ImageWriter iw = ImageWriter(mapfile, imagetype, imgwidth, imgheight, north, south, east, west);
+        int y;
         for (y = 0, lat = north; y < (int)height; y++, lat = north - (sr.dpp * (double)y)) {
+            int x;
             for (x = 0, lon = em.max_west; x < (int)width; x++, lon = em.max_west - (sr.dpp * (double)x)) {
                 if (lon < 0.0)
                     lon += 360.0;
 
-                dem = em.FindDEM(lat, lon, x0, y0);
-                if (dem) {
-                    mask = dem->mask[x0 * sr.ippd + y0];
-                    
-                    /* Note: The array dem->signal holds a scaled value depending 
-                     * on the type that is unscaled again in the following.
-                     * See function PlotLRPath() in elevation_map.cpp
-                     */
-                    if(maptype == MAPTYPE_DBM) {
-						// signal contains the power level in dBm
-						signal = (dem->signal[x0 * sr.ippd + y0]) - 200;
-					} else if(maptype == MAPTYPE_DBUVM) {
-						// signal contains the power level in dBuV/m
-						signal = (dem->signal[x0 * sr.ippd + y0]) - 100;
-					} else if(maptype == MAPTYPE_PATHLOSS) {
-						// signal contains the path loss in dB
-						signal = (dem->signal[x0 * sr.ippd + y0]);
-					}
-
-                    match = 255;
-
-                    red = 0;
-                    green = 0;
-                    blue = 0;
-
-					if(maptype != MAPTYPE_PATHLOSS) {
-						// for dBm and dBuV/m output
-						if (signal >= region.level[0]) {
-							match = 0;
-						} else {
-							for (z = 1; (z < region.levels && match == 255); z++) {
-								if (signal < region.level[z - 1] && signal >= region.level[z])
-									match = z;
-							}
-						}
-						
-						if (match < region.levels) {
-							if (sr.smooth_contours && match > 0) {
-								red = (unsigned)Utilities::interpolate(
-									region.color[match][0],
-									region.color[match - 1][0], region.level[match],
-									region.level[match - 1], signal);
-								green = (unsigned)Utilities::interpolate(
-									region.color[match][1],
-									region.color[match - 1][1], region.level[match],
-									region.level[match - 1], signal);
-								blue = (unsigned)Utilities::interpolate(
-									region.color[match][2],
-									region.color[match - 1][2], region.level[match],
-									region.level[match - 1], signal);
-							} else {
-								red = region.color[match][0];
-								green = region.color[match][1];
-								blue = region.color[match][2];
-							}
-						}
-                    
-					} else {
-						// PathLoss is calculated differently from dBm and dBuV/m
-						if (signal <= region.level[0]) {
-							match = 0;
-						} else {
-							for (z = 1; (z < region.levels && match == 255); z++) {
-								if (signal >= region.level[z - 1] && signal < region.level[z])
-									match = z;
-							}
-						}
-
-                        if (match < region.levels) {
-							if (sr.smooth_contours && match > 0) {
-								red = (unsigned)Utilities::interpolate(
-									region.color[match - 1][0],
-									region.color[match][0], region.level[match - 1],
-									region.level[match], signal);
-								green = (unsigned)Utilities::interpolate(
-									region.color[match - 1][1],
-									region.color[match][1], region.level[match - 1],
-									region.level[match], signal);
-								blue = (unsigned)Utilities::interpolate(
-									region.color[match - 1][2],
-									region.color[match][2], region.level[match - 1],
-									region.level[match], signal);
-							} else {
-								red = region.color[match][0];
-								green = region.color[match][1];
-								blue = region.color[match][2];
-							}
-						}
-					}
-
-                    if (mask & 2) {
-                        /* Text Labels: Red or otherwise */
-
-                        if (red >= 180 && green <= 75 && blue <= 75 && signal != 0)
-                            pixel = RGB(255 ^ red, 255 ^ green, 255 ^ blue);
-                        else
-                            pixel = COLOR_RED;
-                    } else if (mask & 4) {
-                        /* County Boundaries: Black */
-                        pixel = COLOR_BLACK;
-                    } else {
-						if (maptype != MAPTYPE_PATHLOSS) {
-						
-							if (sr.contour_threshold != 0 && signal < sr.contour_threshold) {
-								if (sr.ngs) {
-									/* No terrain */
-									pixel = COLOR_WHITE;
-								} else {
-									/* Display land or sea elevation */
-									if (dem->data[x0 * sr.ippd + y0] == 0) {
-										pixel = COLOR_MEDIUMBLUE;
-									} else {
-										terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-										pixel = RGB(terrain, terrain, terrain);
-									}
-								}
-							} else {
-								/* Plot signal level regions in color */
-								if (red != 0 || green != 0 || blue != 0)
-									pixel = RGB(red, green, blue);
-
-								else /* terrain / sea-level */
-								{
-									if (sr.ngs)
-										pixel = COLOR_WHITE;
-									else {
-										if (dem->data[x0 * sr.ippd + y0] == 0)
-											pixel = COLOR_MEDIUMBLUE;
-										else {
-											/* Elevation: Greyscale */
-											terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-											pixel = RGB(terrain, terrain, terrain);
-										}
-									}
-								}
-							}
-							
-						} // end normal
-						else {
-							// different for PathLoss	
-
-							if (signal == 0 || (sr.contour_threshold != 0 && signal > abs(sr.contour_threshold))) {
-								if (sr.ngs) {
-									/* No terrain */
-									pixel = COLOR_WHITE;
-								} else {
-									/* Display land or sea elevation */
-									if (dem->data[x0 * sr.ippd + y0] == 0) {
-										pixel = COLOR_MEDIUMBLUE;
-									} else {
-										terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-										pixel = RGB(terrain, terrain, terrain);
-									}
-								}
-							} else {
-								/* Plot signal level regions in color */
-								if (red != 0 || green != 0 || blue != 0)
-									pixel = RGB(red, green, blue);
-
-								else /* terrain / sea-level */
-								{
-									if (dem->data[x0 * sr.ippd + y0] == 0)
-										pixel = COLOR_MEDIUMBLUE;
-									else {
-										/* Elevation: Greyscale */
-										terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-										pixel = RGB(terrain, terrain, terrain);
-									}
-								}
-							}
-							
-						} //end PathLoss
-                    }
-                } else {
-                    /* We should never get here, but if */
-                    /* we do, display the region as black */
-                    pixel = COLOR_BLACK;
-                }
+                int x0 = 0, y0 = 0;
+                const Dem *dem = em.FindDEM(lat, lon, x0, y0);
+                Pixel pixel = GetPixel(dem, maptype, region, x0, y0);
 
                 iw.AppendPixel(pixel);
             }
@@ -632,241 +994,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
         if (sr.bottom_legend) {
             /* Display legend along bottom of image
              if not generating .sr.kml or .geo output. */
-
-            colorwidth = (int)rint((float)width / (float)region.levels);
-
-            for (y0 = 0; y0 < 30; y0++) {
-                for (x0 = 0; x0 < (int)width; x0++) {
-                    indx = x0 / colorwidth;
-                    x = x0 % colorwidth;
-                    
-                    if(maptype == MAPTYPE_DBM) {
-						level = abs(region.level[indx]);
-
-						hundreds = level / 100;
-
-						if (hundreds > 0)
-							level -= (hundreds * 100);
-
-						tens = level / 10;
-
-						if (tens > 0)
-							level -= (tens * 10);
-
-						units = level;
-
-						if (y0 >= 8 && y0 <= 23) {
-							if (hundreds > 0) {
-								if (region.level[indx] < 0) {
-									if (x >= 5 && x <= 12)
-										if (fontdata[16 * ('-') + (y0 - 8)] &
-											(128 >> (x - 5)))
-											indx = 255;
-								}
-
-								else {
-									if (x >= 5 && x <= 12)
-										if (fontdata[16 * ('+') + (y0 - 8)] &
-											(128 >> (x - 5)))
-											indx = 255;
-								}
-
-								if (x >= 13 && x <= 20)
-									if (fontdata[16 * (hundreds + '0') + (y0 - 8)] &
-										(128 >> (x - 13)))
-										indx = 255;
-							}
-
-							if (tens > 0 || hundreds > 0) {
-								if (hundreds == 0) {
-									if (region.level[indx] < 0) {
-										if (x >= 13 && x <= 20)
-											if (fontdata[16 * ('-') + (y0 - 8)] &
-												(128 >> (x - 13)))
-												indx = 255;
-									}
-
-									else {
-										if (x >= 13 && x <= 20)
-											if (fontdata[16 * ('+') + (y0 - 8)] &
-												(128 >> (x - 13)))
-												indx = 255;
-									}
-								}
-
-								if (x >= 21 && x <= 28)
-									if (fontdata[16 * (tens + '0') + (y0 - 8)] &
-										(128 >> (x - 21)))
-										indx = 255;
-							}
-
-							if (hundreds == 0 && tens == 0) {
-								if (region.level[indx] < 0) {
-									if (x >= 21 && x <= 28)
-										if (fontdata[16 * ('-') + (y0 - 8)] &
-											(128 >> (x - 21)))
-											indx = 255;
-								}
-
-								else {
-									if (x >= 21 && x <= 28)
-										if (fontdata[16 * ('+') + (y0 - 8)] &
-											(128 >> (x - 21)))
-											indx = 255;
-								}
-							}
-
-							if (x >= 29 && x <= 36)
-								if (fontdata[16 * (units + '0') + (y0 - 8)] &
-									(128 >> (x - 29)))
-									indx = 255;
-
-							if (x >= 37 && x <= 44)
-								if (fontdata[16 * ('d') + (y0 - 8)] &
-									(128 >> (x - 37)))
-									indx = 255;
-
-							if (x >= 45 && x <= 52)
-								if (fontdata[16 * ('B') + (y0 - 8)] &
-									(128 >> (x - 45)))
-									indx = 255;
-
-							if (x >= 53 && x <= 60)
-								if (fontdata[16 * ('m') + (y0 - 8)] &
-									(128 >> (x - 53)))
-									indx = 255;
-						}
-					} // end dBm
-					
-					else if (maptype == MAPTYPE_DBUVM) {
-						level = region.level[indx];
-
-						hundreds = level / 100;
-
-						if (hundreds > 0)
-							level -= (hundreds * 100);
-
-						tens = level / 10;
-
-						if (tens > 0)
-							level -= (tens * 10);
-
-						units = level;
-                      
-                      
-						if (y0 >= 8 && y0 <= 23) {
-							if (hundreds > 0) {
-								if (x >= 5 && x <= 12)
-									if (fontdata[16 * (hundreds + '0') + (y0 - 8)] &
-										(128 >> (x - 5)))
-										indx = 255;
-							}
-
-							if (tens > 0 || hundreds > 0) {
-								if (x >= 13 && x <= 20)
-									if (fontdata[16 * (tens + '0') + (y0 - 8)] &
-										(128 >> (x - 13)))
-										indx = 255;
-							}
-
-							if (x >= 21 && x <= 28)
-								if (fontdata[16 * (units + '0') + (y0 - 8)] &
-									(128 >> (x - 21)))
-									indx = 255;
-
-							if (x >= 36 && x <= 43)
-								if (fontdata[16 * ('d') + (y0 - 8)] &
-									(128 >> (x - 36)))
-									indx = 255;
-
-							if (x >= 44 && x <= 51)
-								if (fontdata[16 * ('B') + (y0 - 8)] &
-									(128 >> (x - 44)))
-									indx = 255;
-
-							if (x >= 52 && x <= 59)
-								if (fontdata[16 * (230) + (y0 - 8)] &
-									(128 >> (x - 52)))
-									indx = 255;
-
-							if (x >= 60 && x <= 67)
-								if (fontdata[16 * ('V') + (y0 - 8)] &
-									(128 >> (x - 60)))
-									indx = 255;
-
-							if (x >= 68 && x <= 75)
-								if (fontdata[16 * ('/') + (y0 - 8)] &
-									(128 >> (x - 68)))
-									indx = 255;
-
-							if (x >= 76 && x <= 83)
-								if (fontdata[16 * ('m') + (y0 - 8)] &
-									(128 >> (x - 76)))
-									indx = 255;
-						}
-                    } // end dBuV/m
-                    
-                    else if(maptype == MAPTYPE_PATHLOSS) {
-						level = region.level[indx];
-
-						hundreds = level / 100;
-
-						if (hundreds > 0)
-							level -= (hundreds * 100);
-
-						tens = level / 10;
-
-						if (tens > 0)
-							level -= (tens * 10);
-
-						units = level;
-
-						if (y0 >= 8 && y0 <= 23) {
-							if (hundreds > 0) {
-								if (x >= 11 && x <= 18)
-									if (fontdata[16 * (hundreds + '0') + (y0 - 8)] &
-										(128 >> (x - 11)))
-										indx = 255;
-							}
-
-							if (tens > 0 || hundreds > 0) {
-								if (x >= 19 && x <= 26)
-									if (fontdata[16 * (tens + '0') + (y0 - 8)] &
-										(128 >> (x - 19)))
-										indx = 255;
-							}
-
-							if (x >= 27 && x <= 34)
-								if (fontdata[16 * (units + '0') + (y0 - 8)] &
-									(128 >> (x - 27)))
-									indx = 255;
-
-							if (x >= 42 && x <= 49)
-								if (fontdata[16 * ('d') + (y0 - 8)] &
-									(128 >> (x - 42)))
-									indx = 255;
-
-							if (x >= 50 && x <= 57)
-								if (fontdata[16 * ('B') + (y0 - 8)] &
-									(128 >> (x - 50)))
-									indx = 255;
-						}
-					} // end PathLoss
-
-                    if (indx > region.levels)
-                        pixel = COLOR_BLACK;
-                    else {
-                        red = region.color[indx][0];
-                        green = region.color[indx][1];
-                        blue = region.color[indx][2];
-
-                        pixel = RGB(red, green, blue);
-                    }
-
-                    iw.AppendPixel(pixel);
-                }
-                iw.EmitLine();
-            }
+            WriteLegend(iw, maptype, region, width);
         }
 
         iw.Finish();
@@ -878,260 +1006,7 @@ void Image::WriteCoverageMap(MapType maptype, ImageType imagetype, Region &regio
 
     if (sr.kml) {
         /* Write colorkey image file */
-        height = 30 * region.levels;
-        width = 100;
-
-        try {
-            ImageWriter iw = ImageWriter(ckfile, imagetype, width, height,0,0,0,0);
-
-            for (y0 = 0; y0 < (int)height; y0++) {
-                for (x0 = 0; x0 < (int)width; x0++) {
-                    indx = y0 / 30;
-                    x = x0;
-                    
-                    if(maptype == MAPTYPE_DBM) {
-						level = abs(region.level[indx]);
-
-						hundreds = level / 100;
-
-						if (hundreds > 0)
-							level -= (hundreds * 100);
-
-						tens = level / 10;
-
-						if (tens > 0)
-							level -= (tens * 10);
-
-						units = level;
-
-						if ((y0 % 30) >= 8 && (y0 % 30) <= 23) {
-							if (hundreds > 0) {
-								if (region.level[indx] < 0) {
-									if (x >= 5 && x <= 12)
-										if (fontdata[16 * ('-') + ((y0 % 30) - 8)] &
-											(128 >> (x - 5)))
-											indx = 255;
-								}
-
-								else {
-									if (x >= 5 && x <= 12)
-										if (fontdata[16 * ('+') + ((y0 % 30) - 8)] &
-											(128 >> (x - 5)))
-											indx = 255;
-								}
-
-								if (x >= 13 && x <= 20)
-									if (fontdata[16 * (hundreds + '0') +
-												 ((y0 % 30) - 8)] &
-										(128 >> (x - 13)))
-										indx = 255;
-							}
-
-							if (tens > 0 || hundreds > 0) {
-								if (hundreds == 0) {
-									if (region.level[indx] < 0) {
-										if (x >= 13 && x <= 20)
-											if (fontdata[16 * ('-') +
-														 ((y0 % 30) - 8)] &
-												(128 >> (x - 13)))
-												indx = 255;
-									}
-
-									else {
-										if (x >= 13 && x <= 20)
-											if (fontdata[16 * ('+') +
-														 ((y0 % 30) - 8)] &
-												(128 >> (x - 13)))
-												indx = 255;
-									}
-								}
-
-								if (x >= 21 && x <= 28)
-									if (fontdata[16 * (tens + '0') +
-												 ((y0 % 30) - 8)] &
-										(128 >> (x - 21)))
-										indx = 255;
-							}
-
-							if (hundreds == 0 && tens == 0) {
-								if (region.level[indx] < 0) {
-									if (x >= 21 && x <= 28)
-										if (fontdata[16 * ('-') + ((y0 % 30) - 8)] &
-											(128 >> (x - 21)))
-											indx = 255;
-								}
-
-								else {
-									if (x >= 21 && x <= 28)
-										if (fontdata[16 * ('+') + ((y0 % 30) - 8)] &
-											(128 >> (x - 21)))
-											indx = 255;
-								}
-							}
-
-							if (x >= 29 && x <= 36)
-								if (fontdata[16 * (units + '0') + ((y0 % 30) - 8)] &
-									(128 >> (x - 29)))
-									indx = 255;
-
-							if (x >= 37 && x <= 44)
-								if (fontdata[16 * ('d') + ((y0 % 30) - 8)] &
-									(128 >> (x - 37)))
-									indx = 255;
-
-							if (x >= 45 && x <= 52)
-								if (fontdata[16 * ('B') + ((y0 % 30) - 8)] &
-									(128 >> (x - 45)))
-									indx = 255;
-
-							if (x >= 53 && x <= 60)
-								if (fontdata[16 * ('m') + ((y0 % 30) - 8)] &
-									(128 >> (x - 53)))
-									indx = 255;
-						}
-                    } // end dBm
-						
-					else if(maptype == MAPTYPE_DBUVM) {
-						level = region.level[indx];
-
-						hundreds = level / 100;
-
-						if (hundreds > 0)
-							level -= (hundreds * 100);
-
-						tens = level / 10;
-
-						if (tens > 0)
-							level -= (tens * 10);
-
-						units = level;
-						
-						if ((y0 % 30) >= 8 && (y0 % 30) <= 23) {
-							if (hundreds > 0) {
-								if (x >= 5 && x <= 12)
-									if (fontdata[16 * (hundreds + '0') +
-												 ((y0 % 30) - 8)] &
-										(128 >> (x - 5)))
-										indx = 255;
-							}
-
-							if (tens > 0 || hundreds > 0) {
-								if (x >= 13 && x <= 20)
-									if (fontdata[16 * (tens + '0') +
-												 ((y0 % 30) - 8)] &
-										(128 >> (x - 13)))
-										indx = 255;
-							}
-
-							if (x >= 21 && x <= 28)
-								if (fontdata[16 * (units + '0') + ((y0 % 30) - 8)] &
-									(128 >> (x - 21)))
-									indx = 255;
-
-							if (x >= 36 && x <= 43)
-								if (fontdata[16 * ('d') + ((y0 % 30) - 8)] &
-									(128 >> (x - 36)))
-									indx = 255;
-
-							if (x >= 44 && x <= 51)
-								if (fontdata[16 * ('B') + ((y0 % 30) - 8)] &
-									(128 >> (x - 44)))
-									indx = 255;
-
-							if (x >= 52 && x <= 59)
-								if (fontdata[16 * (230) + ((y0 % 30) - 8)] &
-									(128 >> (x - 52)))
-									indx = 255;
-
-							if (x >= 60 && x <= 67)
-								if (fontdata[16 * ('V') + ((y0 % 30) - 8)] &
-									(128 >> (x - 60)))
-									indx = 255;
-
-							if (x >= 68 && x <= 75)
-								if (fontdata[16 * ('/') + ((y0 % 30) - 8)] &
-									(128 >> (x - 68)))
-									indx = 255;
-
-							if (x >= 76 && x <= 83)
-								if (fontdata[16 * ('m') + ((y0 % 30) - 8)] &
-									(128 >> (x - 76)))
-									indx = 255;
-						}
-					} // end dBuV/m
-					
-					else if (maptype == MAPTYPE_PATHLOSS) {
-						level = region.level[indx];
-
-						hundreds = level / 100;
-
-						if (hundreds > 0)
-							level -= (hundreds * 100);
-
-						tens = level / 10;
-
-						if (tens > 0)
-							level -= (tens * 10);
-
-						units = level;
-
-						if ((y0 % 30) >= 8 && (y0 % 30) <= 23) {
-							if (hundreds > 0) {
-								if (x >= 11 && x <= 18)
-									if (fontdata[16 * (hundreds + '0') +
-												 ((y0 % 30) - 8)] &
-										(128 >> (x - 11)))
-										indx = 255;
-							}
-
-							if (tens > 0 || hundreds > 0) {
-								if (x >= 19 && x <= 26)
-									if (fontdata[16 * (tens + '0') +
-												 ((y0 % 30) - 8)] &
-										(128 >> (x - 19)))
-										indx = 255;
-							}
-
-							if (x >= 27 && x <= 34)
-								if (fontdata[16 * (units + '0') + ((y0 % 30) - 8)] &
-									(128 >> (x - 27)))
-									indx = 255;
-
-							if (x >= 42 && x <= 49)
-								if (fontdata[16 * ('d') + ((y0 % 30) - 8)] &
-									(128 >> (x - 42)))
-									indx = 255;
-
-							if (x >= 50 && x <= 57)
-								if (fontdata[16 * ('B') + ((y0 % 30) - 8)] &
-									(128 >> (x - 50)))
-									indx = 255;
-						}
-					} // end pathloss
-
-                    if (indx > region.levels) {
-                        pixel = COLOR_BLACK;
-                    } else {
-                        red = region.color[indx][0];
-                        green = region.color[indx][1];
-                        blue = region.color[indx][2];
-
-                        pixel = RGB(red, green, blue);
-                    }
-
-                    iw.AppendPixel(pixel);
-                }
-
-                iw.EmitLine();
-            }
-
-            iw.Finish();
-
-        } catch (const std::exception &e) {
-            std::cerr << "Error writing " << ckfile << ": " << e.what()
-                      << std::endl;
-            return;
-        }
+        WriteColorKeyImageFile(ckfile, imagetype, maptype, region);
         
 #if DO_KMZ
         bool success = false;
