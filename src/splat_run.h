@@ -12,6 +12,7 @@
 #define splat_run_h
 
 #include <string>
+#include <iostream>
 
 #include "imagewriter.h"
 #include "site.h"
@@ -27,12 +28,17 @@ const size_t SPLAT_NAME_SIZE = 10;
 const size_t DASHES_SIZE = 80;
 const size_t SDF_PATH_SIZE = 255;
 
+typedef enum PropagationModel {
+    PROP_ITM = 0,
+    PROP_ITWOM
+} PropagationModel;
+
 class SplatRun {
   public:
     static const std::string splat_name;
     static const std::string splat_version;
 
-    bool olditm;
+    PropagationModel propagation_model;
 
     std::string sdf_path;
 
@@ -65,6 +71,7 @@ class SplatRun {
     int arraysize;
 
     bool kml;
+    bool json;
     bool geo;
     bool gpsav;
     bool ngs;
@@ -90,10 +97,12 @@ class SplatRun {
     bool metric;
     bool dbm;
     bool smooth_contours;
+    bool bottom_legend;
     bool verbose;
     bool multithread;
     std::string sdf_delimiter;
     ImageType imagetype;
+    ProjectionType projection;
 };
 
 #endif /* splat_run_h */

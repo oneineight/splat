@@ -8,29 +8,35 @@
  * This file is covered by the LICENSE.md file in the root of this project.
  */
 
-#include "pat_file.h"
+#include "antenna_pattern.h"
 #include "site.h"
 #include "splat_run.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <iostream>
+#include <fstream>
 
 using namespace std;
 
-void PatFile::LoadPAT(const string &filename) {
+void AntennaPattern::LoadAntennaPattern(const string &filename) {
     /* This function reads and processes antenna pattern (.az
      and .el) files that correspond in name to previously
      loaded SPLAT! .lrp files.  */
 
     int a, b, w, x, y, z, last_index, next_index, span;
     char string[255], azfile[255], elfile[255], *pointer = NULL;
-    float az, xx, elevation, amplitude, rotation, valid1, valid2, delta,
+    float az, xx, elevation, amplitude, valid1, valid2, delta,
         azimuth[361], azimuth_pattern[361], el_pattern[10001],
-        elevation_pattern[361][1001], slant_angle[361], tilt,
-        mechanical_tilt = 0.0, tilt_azimuth, tilt_increment, sum;
+        elevation_pattern[361][1001], slant_angle[361], tilt, sum;
     FILE *fd = NULL;
     unsigned char read_count[10001];
+    
+    /* antenna */
+    float antenna_azimuth = 0;
+    float antenna_elevation_tilt = 0;
+    float antenna_horizontal_roll = 0;
 
     for (x = 0; filename[x] != '.' && filename[x] != 0 && x < 250; x++) {
         azfile[x] = filename[x];
@@ -47,8 +53,6 @@ void PatFile::LoadPAT(const string &filename) {
     elfile[x + 2] = 'l';
     elfile[x + 3] = 0;
 
-    rotation = 0.0;
-
     got_azimuth_pattern = false;
     got_elevation_pattern = false;
 
@@ -64,7 +68,7 @@ void PatFile::LoadPAT(const string &filename) {
             read_count[x] = 0;
         }
 
-        /* Read azimuth pattern rotation
+        /* Read azimuth pattern rotation (= bearing)
          in degrees measured clockwise
          from true North. */
 
@@ -74,7 +78,7 @@ void PatFile::LoadPAT(const string &filename) {
         if (pointer != NULL)
             *pointer = 0;
 
-        sscanf(string, "%f", &rotation);
+        sscanf(string, "%f", &antenna_azimuth);
 
         /* Read azimuth (degrees) and corresponding
          normalized field radiation pattern amplitude
@@ -162,7 +166,7 @@ void PatFile::LoadPAT(const string &filename) {
          azimuth pattern data in its final form. */
 
         for (x = 0; x < 360; x++) {
-            y = x + (int)rintf(rotation);
+            y = x + (int)rintf(antenna_azimuth);
 
             if (y >= 360)
                 y -= 360;
@@ -195,7 +199,7 @@ void PatFile::LoadPAT(const string &filename) {
         if (pointer != NULL)
             *pointer = 0;
 
-        sscanf(string, "%f %f", &mechanical_tilt, &tilt_azimuth);
+        sscanf(string, "%f %f", &antenna_elevation_tilt, &antenna_horizontal_roll);
 
         /* Read elevation (degrees) and corresponding
          normalized field radiation pattern amplitude
@@ -274,32 +278,12 @@ void PatFile::LoadPAT(const string &filename) {
         /* Fill slant_angle[] array with offset angles based
          on the antenna's mechanical beam tilt (if any)
          and tilt direction (azimuth). */
-
-        if (mechanical_tilt == 0.0) {
-            for (x = 0; x <= 360; x++)
-                slant_angle[x] = 0.0;
-        }
-
-        else {
-            tilt_increment = mechanical_tilt / 90.0;
-
-            for (x = 0; x <= 360; x++) {
-                xx = (float)x;
-                y = (int)rintf(tilt_azimuth + xx);
-
-                while (y >= 360)
-                    y -= 360;
-
-                while (y < 0)
-                    y += 360;
-
-                if (x <= 180)
-                    slant_angle[y] = -(tilt_increment * (90.0 - xx));
-
-                if (x > 180)
-                    slant_angle[y] = -(tilt_increment * (xx - 270.0));
-            }
-        }
+         
+        /* transform coordinates starting from antenna_azimuth */
+        int n = 0;
+		for (x = (int)rintf(antenna_azimuth), n = 0; x <= (int)rintf(antenna_azimuth) + 360; x++, n++) {
+			slant_angle[x%360] = cos(n * 3.14159265 / 180) * (-antenna_elevation_tilt) + sin(n * 3.14159265 / 180) * (-antenna_horizontal_roll);
+		}
 
         slant_angle[360] = slant_angle[0]; /* 360 degree wrap-around */
 
@@ -334,6 +318,12 @@ void PatFile::LoadPAT(const string &filename) {
 
         got_elevation_pattern = true;
     }
+    
+    char antenna_name[60];
+    
+    /* DEBUG: output 2D antenna pattern as csv file */
+    //sprintf(antenna_name, "antennafile.csv");
+    //ofstream antennafile(antenna_name);
 
     for (x = 0; x <= 360; x++) {
         for (y = 0; y <= 1000; y++) {
@@ -348,6 +338,15 @@ void PatFile::LoadPAT(const string &filename) {
                 az = 1.0;
 
             antenna_pattern[x][y] = az * elevation;
+            
+            //antennafile << antenna_pattern[x][y] << " ";
         }
+        //antennafile << endl;
     }
+    
+    //antennafile.close();
+    
+    if (got_elevation_pattern && got_azimuth_pattern) {
+		cout << "Using elevation and azimuth pattern\n";
+	}
 }

@@ -21,6 +21,7 @@ You also need several utility libraries:
 * zlib
 * libpng
 * libjpeg
+* libgdal
 
 and gnuplot for generating graphs.
 
@@ -29,20 +30,20 @@ You can generally get these via system packages. For instance:
 
 ### Centos 7:
 
-`yum install cmake bzip2-devel zlib-devel libpng-devel libjpeg-turbo-devel gnuplot`
+`yum install cmake bzip2-devel zlib-devel libpng-devel libjpeg-turbo-devel libgdal-devel gnuplot`
 
 ### Debian (Buster) and Ubuntu (18.04 LTS):
 
-`apt-get install cmake libbz2-dev zlib1g-dev libjpeg-dev libpng-dev gnuplot`
+`apt-get install cmake libbz2-dev zlib1g-dev libjpeg-dev libpng-dev libgdal-dev gnuplot`
 
 ### OSX (High Sierra):
 
 #### Homebrew
 
-`brew install cmake jpeg libpng gnuplot`
+`brew install cmake jpeg libpng libgdal gnuplot`
 
 #### MacPorts
-`port install cmake jpeg libpng gnuplot`
+`port install cmake jpeg libpng libgdal gnuplot`
 
 ### Example Build on Ubuntu 18.04 LTS
 As an example, a build on Ubuntu 18.04 LTS might look like this:
@@ -50,7 +51,7 @@ As an example, a build on Ubuntu 18.04 LTS might look like this:
 ```
 sudo apt install git cmake
 git clone https://github.com/hoche/splat.git
-sudo apt install libbz2-dev zlib1g-dev libjpeg-dev libpng-dev gnuplot
+sudo apt install libbz2-dev zlib1g-dev libjpeg-dev libpng-dev libgdal-dev gnuplot
 cd splat/build
 cmake ..
 make

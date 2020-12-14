@@ -19,7 +19,7 @@
 #include "elevation_map.h"
 #include "itwom3.0.h"
 #include "lrp.h"
-#include "pat_file.h"
+#include "antenna_pattern.h"
 #include "path.h"
 #include "report.h"
 #include "sdf.h"
@@ -31,7 +31,7 @@ using namespace std;
 
 void Report::PathReport(const Site &source, const Site &destination,
                         const string &name, bool graph_it, elev_t elev[],
-                        const PatFile &pat, const Lrp &lrp) {
+                        const AntennaPattern &pat, const Lrp &lrp) {
     /* This function writes a SPLAT! Path Report (name.txt) to
      the filesystem.  If (graph_it == 1), then gnuplot is invoked
      to generate an appropriate output file indicating the ITM
@@ -239,7 +239,7 @@ void Report::PathReport(const Site &source, const Site &destination,
     fprintf(fd2, "\n%s\n\n", dashes.c_str());
 
     if (lrp.frq_mhz > 0.0) {
-        if (sr.olditm)
+        if (sr.propagation_model == PROP_ITM)
             fprintf(fd2, "Longley-Rice Parameters Used In This Analysis:\n\n");
         else
             fprintf(fd2,
@@ -432,7 +432,7 @@ void Report::PathReport(const Site &source, const Site &destination,
             elev[1] =
                 METERS_PER_MILE * (path.distance[y] - path.distance[y - 1]);
 
-            if (sr.olditm)
+            if (sr.propagation_model == PROP_ITM)
                 point_to_point_ITM(elev, source.alt * METERS_PER_FOOT,
                                    destination.alt * METERS_PER_FOOT,
                                    lrp.eps_dielect, lrp.sgm_conductivity,
@@ -494,7 +494,7 @@ void Report::PathReport(const Site &source, const Site &destination,
             fprintf(fd2, "Free space path loss: %.2f dB\n", free_space_loss);
         }
 
-        if (sr.olditm)
+        if (sr.propagation_model == PROP_ITM)
             fprintf(fd2, "Longley-Rice path loss: %.2f dB\n", loss);
         else
             fprintf(fd2, "ITWOM Version %.1f path loss: %.2f dB\n",
@@ -549,7 +549,7 @@ void Report::PathReport(const Site &source, const Site &destination,
 
         fprintf(fd2, "Mode of propagation: ");
 
-        if (sr.olditm) {
+		if (sr.propagation_model == PROP_ITM) {
             fprintf(fd2, "%s\n", strmode);
             fprintf(fd2, "Longley-Rice model error number: %d", errnum);
         }
@@ -701,7 +701,7 @@ void Report::PathReport(const Site &source, const Site &destination,
             fprintf(fd, "set ylabel \"Total Path Loss (including TX antenna "
                         "pattern) (dB)");
         else {
-            if (sr.olditm)
+            if (sr.propagation_model == PROP_ITM)
                 fprintf(fd, "set ylabel \"Longley-Rice Path Loss (dB)");
             else
                 fprintf(fd, "set ylabel \"ITWOM Version %.1f Path Loss (dB)",

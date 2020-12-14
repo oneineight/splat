@@ -12,7 +12,7 @@
 #include "dem.h"
 #include "elevation_map.h"
 #include "lrp.h"
-#include "pat_file.h"
+#include "antenna_pattern.h"
 #include "path.h"
 #include "sdf.h"
 #include "site.h"

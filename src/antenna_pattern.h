@@ -8,19 +8,19 @@
  * This file is covered by the LICENSE.md file in the root of this project.
  */
 
-#ifndef pat_file_h
-#define pat_file_h
+#ifndef antenna_pattern_file_h
+#define antenna_pattern_file_h
 
 #include <string>
 
-class PatFile {
+class AntennaPattern {
   public:
     bool got_elevation_pattern;
     bool got_azimuth_pattern;
     float antenna_pattern[361][1001];
 
   public:
-    void LoadPAT(const std::string &filename);
+    void LoadAntennaPattern(const std::string &filename);
 };
 
-#endif /* pat_file_h */
+#endif /* antenna_pattern_file_h */

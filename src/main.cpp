@@ -11,6 +11,7 @@
  */
 
 #include "anf.h"
+#include "antenna_pattern.h"
 #include "boundary_file.h"
 #include "city_file.h"
 #include "dem.h"
@@ -18,9 +19,9 @@
 #include "gnuplot.h"
 #include "image.h"
 #include "itwom3.0.h"
+#include "json.h"
 #include "kml.h"
 #include "lrp.h"
-#include "pat_file.h"
 #include "path.h"
 #include "region.h"
 #include "report.h"
@@ -51,7 +52,7 @@ int main(int argc, const char *argv[]) {
 
     char *env = NULL;
     string mapfile, elevation_file, height_file, longley_file, terrain_file,
-        udt_file, ani_filename, ano_filename, logfile, maxpages_str;
+        udt_file, ani_filename, ano_filename, logfile, maxpages_str, proj;
 
     vector<std::string> city_file;
     vector<std::string> boundary_file;
@@ -64,6 +65,7 @@ int main(int argc, const char *argv[]) {
     sr.maxpages = 16;
     sr.arraysize = -1;
 
+	sr.propagation_model = PROP_ITM;
     sr.hd_mode = false;
     sr.coverage = false;
     sr.LRmap = false;
@@ -76,6 +78,7 @@ int main(int argc, const char *argv[]) {
     sr.topomap = false;
     sr.geo = false;
     sr.kml = false;
+    sr.json = false;
     sr.pt2pt_mode = false;
     sr.area_mode = false;
     sr.ngs = false;
@@ -84,8 +87,9 @@ int main(int argc, const char *argv[]) {
     sr.fresnel_plot = true;
     sr.command_line_log = false;
     sr.rxsite = false;
-    sr.metric = false;
+    sr.metric = true;
     sr.dbm = false;
+    sr.bottom_legend = true;
     sr.smooth_contours = false;
 
     sr.altitude = 0.0;
@@ -108,16 +112,11 @@ int main(int argc, const char *argv[]) {
 #else
     sr.imagetype = IMAGETYPE_PPM;
 #endif
+	sr.projection = PROJ_EPSG_4326;
     sr.multithread = true;
-    sr.verbose = 1;
-    unsigned char imagetype_set = 0;
-    
-#ifndef _WIN32
-    sr.sdf_delimiter = ":";
-#else
+    sr.verbose = 1;    
     sr.sdf_delimiter = "_";
-#endif
-
+    
     if (argc == 1) {
         cout
             << "\n\t\t --==[ " << SplatRun::splat_name << " v"
@@ -180,7 +179,7 @@ int main(int argc, const char *argv[]) {
                "SPLAT! execution\n"
                "   -itwom invoke the ITWOM model instead of using "
                "Longley-Rice\n"
-               "  -metric employ metric rather than imperial units for all "
+               "  -imperial employ imperial rather than metric units for all "
                "user I/O\n"
                "-maxpages ["
             << sr.maxpages
@@ -338,15 +337,24 @@ int main(int argc, const char *argv[]) {
             sr.norm = strcmp(argv[x], "-H") == 0 ? true : false;
         }
 
+		bool imagetype_set = false;
 #ifdef HAVE_LIBPNG
         if (strcmp(argv[x], "-ppm") == 0) {
             if (imagetype_set && sr.imagetype != IMAGETYPE_PPM) {
-                fprintf(
-                    stdout,
-                    "-jpg and -ppm are exclusive options, ignoring -ppm.\n");
+                fprintf(stdout, "-jpg and -ppm are exclusive options, ignoring -ppm.\n");
             } else {
                 sr.imagetype = IMAGETYPE_PPM;
-                imagetype_set = 1;
+                imagetype_set = true;
+            }
+        }
+#endif
+#ifdef HAVE_LIBGDAL
+        if (strcmp(argv[x], "-tif") == 0) {
+            if (imagetype_set && sr.imagetype != IMAGETYPE_PPM) {
+                fprintf(stdout, "-tif and -ppm are exclusive options, ignoring -ppm.\n");
+            } else {
+                sr.imagetype = IMAGETYPE_GEOTIFF;
+                imagetype_set = true;
             }
         }
 #endif
@@ -354,24 +362,38 @@ int main(int argc, const char *argv[]) {
         if (strcmp(argv[x], "-jpg") == 0) {
             if (imagetype_set && sr.imagetype != IMAGETYPE_JPG) {
 #ifdef HAVE_LIBPNG
-                fprintf(
-                    stdout,
-                    "-jpg and -ppm are exclusive options, ignoring -jpg.\n");
+                fprintf(stdout, "-jpg and -ppm are exclusive options, ignoring -jpg.\n");
 #else
-                fprintf(
-                    stdout,
-                    "-jpg and -png are exclusive options, ignoring -jpg.\n");
+                fprintf(stdout, "-jpg and -png are exclusive options, ignoring -jpg.\n");
 #endif
             } else {
                 sr.imagetype = IMAGETYPE_JPG;
-                imagetype_set = 1;
+                imagetype_set = true;
             }
         }
-
 #endif
 
-        if (strcmp(argv[x], "-metric") == 0)
-            sr.metric = true;
+#ifdef HAVE_LIBGDAL
+        if (strcmp(argv[x], "-proj") == 0) {
+            if (sr.imagetype == IMAGETYPE_GEOTIFF || sr.imagetype == IMAGETYPE_PNG || sr.imagetype == IMAGETYPE_JPG) {
+				z = x + 1;
+				if (z <= y && argv[z][0] && argv[z][0] != '-') {
+					if(strcmp(argv[z], "epsg:3857") == 0) {
+						sr.projection = PROJ_EPSG_3857;
+					} else if(strcmp(argv[z], "epsg:4326") == 0) {
+						sr.projection = PROJ_EPSG_4326;
+					} else {
+						cerr << "Ignoring unknown projection " << argv[z] << " and taking epsg:4326 instead.\n";
+					}
+				}	
+            } else {
+                cerr << "-proj supports only gdal output formats. Please use -png, -tif or -jpg.\n";
+            }
+        }
+#endif
+
+        if (strcmp(argv[x], "-imperial") == 0)
+            sr.metric = false;
 
         if (strcmp(argv[x], "-gpsav") == 0)
             sr.gpsav = true;
@@ -381,6 +403,9 @@ int main(int argc, const char *argv[]) {
 
         if (strcmp(argv[x], "-kml") == 0)
             sr.kml = true;
+            
+        if (strcmp(argv[x], "-json") == 0)
+            sr.json = true;
 
         if (strcmp(argv[x], "-nf") == 0)
             sr.fresnel_plot = false;
@@ -401,7 +426,7 @@ int main(int argc, const char *argv[]) {
             sr.multithread = false;
 
         if (strcmp(argv[x], "-itwom") == 0)
-            sr.olditm = false;
+            sr.propagation_model = PROP_ITWOM;
 
         if (strcmp(argv[x], "-N") == 0) {
             sr.nolospath = true;
@@ -420,8 +445,7 @@ int main(int argc, const char *argv[]) {
 
             z = x + 1;
 
-            while (z <= y && argv[z][0] && argv[z][0] != '-' &&
-                   tx_site.size() < 30) {
+            while (z <= y && argv[z][0] && argv[z][0] != '-' && tx_site.size() < 30) {
                 string txfile = argv[z];
                 tx_site.push_back(Site(txfile));
                 z++;
@@ -440,8 +464,7 @@ int main(int argc, const char *argv[]) {
                 sr.area_mode = true;
 
                 if (sr.coverage)
-                    fprintf(stdout,
-                            "c and L are exclusive options, ignoring L.\n");
+                    fprintf(stdout,"c and L are exclusive options, ignoring L.\n");
             }
         }
 
@@ -558,7 +581,8 @@ int main(int argc, const char *argv[]) {
         if (strcmp(argv[x], "-hd") == 0) {
             sr.hd_mode = true;
         }
-    }
+    } /* end of command line argument scanning */
+
 
     /* Perform some error checking on the arguments
      and switches parsed from the command-line.
@@ -566,15 +590,13 @@ int main(int argc, const char *argv[]) {
      and exit gracefully. */
 
     if (tx_site.size() == 0) {
-        fprintf(stderr, "\n%c*** ERROR: No transmitter site(s) specified!\n\n",
-                7);
+        fprintf(stderr, "\n%c*** ERROR: No transmitter site(s) specified!\n\n", 7);
         exit(-1);
     }
 
     for (x = 0, y = 0; x < tx_site.size(); x++) {
         if (tx_site[x].lat == 91.0 && tx_site[x].lon == 361.0) {
-            fprintf(stderr, "\n*** ERROR: Transmitter site #%lu not found!",
-                    x + 1);
+            fprintf(stderr, "\n*** ERROR: Transmitter site #%lu not found!", x + 1);
             y++;
         }
     }
@@ -588,18 +610,21 @@ int main(int argc, const char *argv[]) {
         rx_site.lat == 91.0 && rx_site.lon == 361.0) {
         if (sr.max_range != 0.0 && tx_site.size() != 0) {
             /* Plot topographic map of radius "sr.max_range" */
-
             sr.map = false;
             sr.topomap = true;
-        }
-
-        else {
-            fprintf(stderr,
-                    "\n%c*** ERROR: No receiver site found or specified!\n\n",
-                    7);
+        } else {
+            fprintf(stderr, "\n%c*** ERROR: No receiver site found or specified!\n\n", 7);
             exit(-1);
         }
     }
+    
+    /* check if the output map should have a bottom legend */
+    // TODO: PVW: LOS maps don't use a legend. Does sr.coverage detect those correctly?
+    if (sr.kml || sr.geo || (sr.imagetype == IMAGETYPE_GEOTIFF) || sr.coverage) {
+		sr.bottom_legend = false;
+	} else {
+		sr.bottom_legend = true;
+	}
 
     switch (sr.maxpages) {
     case 1:
@@ -652,17 +677,8 @@ int main(int argc, const char *argv[]) {
     int degrees = (int)sqrt((int)sr.maxpages);
 
     cout << "This invocation of " << SplatRun::splat_name
-         << " supports analysis over a region of " << degrees << " square\n";
-
-    if (degrees == 1)
-        fprintf(stdout, "degree");
-    else
-        fprintf(stdout, "degrees");
-
-    fprintf(
-        stdout,
-        " of terrain, and computes signal levels using ITWOM Version %.1f.\n\n",
-        ITWOMVersion());
+         << " supports analysis over a region of " << degrees << " square \n" << ((degrees == 1) ? "degree" : "degrees")
+		 << " of terrain, and computes signal levels using ITWOM Version " << ITWOMVersion() << ".\n\n";
 
     sr.ppd = (double)sr.ippd; /* pixels per degree (double)  */
     sr.dpp = 1.0 / sr.ppd;    /* degrees per pixel */
@@ -670,7 +686,7 @@ int main(int argc, const char *argv[]) {
 
     /* No major errors were detected.  Whew!  :-) */
 
-    /* Adjust input parameters if -metric option is used */
+    /* Adjust input parameters if -imperial option is not used */
 
     if (sr.metric) {
         sr.altitudeLR /= METERS_PER_FOOT; /* meters --> feet */
@@ -716,23 +732,23 @@ int main(int argc, const char *argv[]) {
     check_allocation(em_p, "em_p", sr);
 
     Lrp lrp(sr.forced_erp, sr.forced_freq);
-    Image image(sr, mapfile, tx_site, *em_p);
     BoundaryFile bf(sr);
     CityFile cf;
     Region region;
 
     if (!ani_filename.empty()) {
+	/* read alphanumeric output file from previous simulations if given */
+	
         // TODO: Here's an instance where reading the LRParms may say to load
         // a PAT file but it's never used. Refactor this.
-        PatFile pat = PatFile();
+        AntennaPattern pat = AntennaPattern();
 
         // TODO: Why only the first TX site?
         bool loadPat;
         string patFilename;
-        lrp.ReadLRParm(tx_site[0], 0, loadPat,
-                       patFilename); /* Get ERP status */
+        lrp.ReadLRParm(tx_site[0], 0, loadPat, patFilename); /* Get ERP status */
         if (loadPat) {
-            pat.LoadPAT(patFilename);
+            pat.LoadAntennaPattern(patFilename);
         }
         Anf anf(lrp, sr);
 
@@ -745,32 +761,35 @@ int main(int argc, const char *argv[]) {
             em_p->PlaceMarker(rx_site);
 
         if (boundary_file.size() > 0) {
-            for (x = 0; x < boundary_file.size(); x++)
+            for (x = 0; x < boundary_file.size(); x++) {
                 bf.LoadBoundaries(boundary_file[x], *em_p);
-
+			}
             fprintf(stdout, "\n");
             fflush(stdout);
         }
 
         if (city_file.size() > 0) {
-            for (x = 0; x < city_file.size(); x++)
+            for (x = 0; x < city_file.size(); x++) {
                 cf.LoadCities(city_file[x], *em_p);
-
+			}
             fprintf(stdout, "\n");
             fflush(stdout);
         }
 
+        Image image(sr, mapfile, tx_site, *em_p);
         if (lrp.erp == 0.0) {
-            image.WriteImageLR(sr.imagetype, region);
+            image.WriteCoverageMap(MAPTYPE_PATHLOSS, sr.imagetype, region);
         } else {
             if (sr.dbm)
-                image.WriteImageDBM(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_DBM, sr.imagetype, region);
             else
-                image.WriteImageSS(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_DBUVM, sr.imagetype, region);
         }
 
         exit(0);
     }
+    
+    /* proceed for normal simulation */
 
     x = 0;
     y = 0;
@@ -816,7 +835,6 @@ int main(int argc, const char *argv[]) {
     }
 
     /* Load the required SDF files */
-
     em_p->LoadTopoData(max_lon, min_lon, max_lat, min_lat, sdf);
 
     if (sr.area_mode || sr.topomap) {
@@ -824,13 +842,13 @@ int main(int argc, const char *argv[]) {
             /* "Ball park" estimates used to load any additional
              SDF files required to conduct this analysis. */
 
-            sr.tx_range =
-                sqrt(1.5 * (tx_site[z].alt + em_p->GetElevation(tx_site[z])));
+            sr.tx_range = sqrt(1.5 * (tx_site[z].alt + em_p->GetElevation(tx_site[z])));
 
-            if (sr.LRmap)
+            if (sr.LRmap) {
                 sr.rx_range = sqrt(1.5 * sr.altitudeLR);
-            else
+            } else {
                 sr.rx_range = sqrt(1.5 * sr.altitude);
+			}
 
             /* sr.deg_range determines the maximum
              amount of topo data we read */
@@ -845,9 +863,9 @@ int main(int argc, const char *argv[]) {
              width of the analysis and the size of
              the map. */
 
-            if (sr.max_range == 0.0)
+            if (sr.max_range == 0.0) {
                 sr.max_range = sr.tx_range + sr.rx_range;
-
+			}
             sr.deg_range = sr.max_range / 57.0;
 
             /* Prevent the demand for a really wide coverage
@@ -892,13 +910,13 @@ int main(int argc, const char *argv[]) {
                 break;
             }
 
-            if (fabs(tx_site[z].lat) < 70.0)
+            if (fabs(tx_site[z].lat) < 70.0) {
                 sr.deg_range_lon = sr.deg_range / cos(DEG2RAD * tx_site[z].lat);
-            else
+            } else {
                 sr.deg_range_lon = sr.deg_range / cos(DEG2RAD * 70.0);
-
+			}
+			
             /* Correct for squares in degrees not being square in miles */
-
             if (sr.deg_range > sr.deg_limit)
                 sr.deg_range = sr.deg_limit;
 
@@ -938,7 +956,6 @@ int main(int argc, const char *argv[]) {
         }
 
         /* Load any additional SDF files, if required */
-
         em_p->LoadTopoData(max_lon, min_lon, max_lat, min_lat, sdf);
     }
 
@@ -1020,7 +1037,7 @@ int main(int argc, const char *argv[]) {
                 oss << "-" << x + 1;
             oss << "." << ext;
 
-            PatFile pat;
+            AntennaPattern pat;
             if (!sr.nositereports) {
                 filename = longley_file + oss.str();
                 bool longly_file_exists = !longley_file.empty();
@@ -1030,7 +1047,7 @@ int main(int argc, const char *argv[]) {
                 lrp.ReadLRParm(tx_site[x], longly_file_exists, loadPat,
                                patFilename);
                 if (loadPat) {
-                    pat.LoadPAT(patFilename);
+                    pat.LoadAntennaPattern(patFilename);
                 }
                 report.PathReport(tx_site[x], rx_site, filename,
                                   longly_file_exists, elev, pat, lrp);
@@ -1039,7 +1056,7 @@ int main(int argc, const char *argv[]) {
                 string patFilename;
                 lrp.ReadLRParm(tx_site[x], 1, loadPat, patFilename);
                 if (loadPat) {
-                    pat.LoadPAT(patFilename);
+                    pat.LoadAntennaPattern(patFilename);
                 }
                 report.PathReport(tx_site[x], rx_site, filename, true, elev,
                                   pat, lrp);
@@ -1068,7 +1085,7 @@ int main(int argc, const char *argv[]) {
     if (sr.area_mode && !sr.topomap) {
         // Allocate the antenna pattern on the heap because it has a huge array
         // of floats that would otherwise be on the stack.
-        PatFile *p_pat = new PatFile();
+        AntennaPattern *p_pat = new AntennaPattern();
         for (x = 0; x < tx_site.size(); x++) {
 
             if (sr.coverage) {
@@ -1078,12 +1095,11 @@ int main(int argc, const char *argv[]) {
                 string patFilename;
                 char flag = lrp.ReadLRParm(tx_site[x], 1, loadPat, patFilename);
                 if (loadPat) {
-                    p_pat->LoadPAT(patFilename);
+                    p_pat->LoadAntennaPattern(patFilename);
                 }
 
                 if (flag) {
-                    em_p->PlotLRMap(tx_site[x], sr.altitudeLR, ano_filename,
-                                    *p_pat, lrp);
+                    em_p->PlotLRMap(tx_site[x], sr.altitudeLR, ano_filename, *p_pat, lrp);
                 }
             }
 
@@ -1095,7 +1111,7 @@ int main(int argc, const char *argv[]) {
     if (sr.map || sr.topomap) {
         /* Label the map */
 
-        if (!sr.kml) {
+        if (!(sr.kml || sr.imagetype == IMAGETYPE_GEOTIFF)) {
             for (x = 0; x < tx_site.size(); x++)
                 em_p->PlaceMarker(tx_site[x]);
         }
@@ -1123,19 +1139,20 @@ int main(int argc, const char *argv[]) {
         }
 
         /* Plot the map */
-
-        if (sr.coverage || sr.pt2pt_mode || sr.topomap)
-            image.WriteImage(sr.imagetype);
-
-        else {
+        Image image(sr, mapfile, tx_site, *em_p);
+        if (sr.coverage || sr.pt2pt_mode || sr.topomap) {
+            image.WriteCoverageMap(MAPTYPE_LOS, sr.imagetype, region);
+            // TODO: PVW: Remove commented out line
+            //image.WriteImage(sr.imagetype);
+        } else {
             if (lrp.erp == 0.0)
-                image.WriteImageLR(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_PATHLOSS, sr.imagetype, region);
             else if (sr.dbm)
-                image.WriteImageDBM(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_DBM, sr.imagetype, region);
             else
-                image.WriteImageSS(sr.imagetype, region);
+                image.WriteCoverageMap(MAPTYPE_DBUVM, sr.imagetype, region);
         }
-    }
+    }    
 
     if (sr.command_line_log && !logfile.empty()) {
         fstream fs;
@@ -1144,19 +1161,46 @@ int main(int argc, const char *argv[]) {
         // TODO: Should we fail silently if we can't open the logfile. Shouldn't
         // we WARN?
         if (fs) {
-            for (x = 0; x < (size_t)argc; x++)
+            for (x = 0; x < (size_t)argc; x++) {
                 fs << argv[x] << " ";
-
+			}
             fs << endl;
-
             fs.close();
 
-            cout << "\nCommand-line parameter log written to: \"" << logfile
-                 << "\"\n";
+            cout << "\nCommand-line parameter log written to: \"" << logfile << "\"\n";
         }
     }
 
     cout << endl;
+    
+    /* json input/output must be somewhere else, but this is how it goes: 
+    //================
+    arg_t args;
+	
+	string curr_arg = "";
+	int curr_arg_i = 0;
+	for(int i=0; i<argc; i++) {		// step through argv[] array
+		string arg = argv[i];
+		if(arg.find("-") == 0) {	// check if current argument has leading "-"
+			curr_arg = arg.erase(0,1);	// remove leading "-" and save as new array entry
+			curr_arg_i = i;		// save position for multiple parameters
+			args[curr_arg] = "";
+		} else {
+			if (curr_arg != "") {
+				if(i == (curr_arg_i + 1)) {
+					args[curr_arg] = arg;	// if no "-" was found the current argument is considered as a value to the previous argument
+				} else {
+					args[curr_arg] += " " + arg;	// if no "-" was found the current argument is considered as a value to the previous argument
+				}
+			}
+		}
+	}
+	// end argv[] reading
+	
+    Json json(*em_p, sr);
+    json.WriteJSON(args, tx_site[0], lrp, mapfile);
+    //=====================
+    */
 
     /* That's all, folks! */
 

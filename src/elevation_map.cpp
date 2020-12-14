@@ -13,7 +13,7 @@
 #include "fontdata.h"
 #include "itwom3.0.h"
 #include "lrp.h"
-#include "pat_file.h"
+#include "antenna_pattern.h"
 #include "path.h"
 #include "sdf.h"
 #include "site.h"
@@ -667,7 +667,8 @@ void ElevationMap::PlotPath(const Site &source, const Site &destination,
  * and plots the line-of-sight coverage of the transmitter on the SPLAT!
  * generated topographic map based on a receiver located at the specified
  * altitude (in feet AGL). Results are stored in memory, and written out in the
- * form of a topographic map when the WriteImage() function is later invoked.
+ * form of a topographic map when the WriteCoverageMap() function is later
+ * invoked.
  */
 void ElevationMap::PlotLOSMap(const Site &source, double altitude) {
     int y, z, count;
@@ -883,10 +884,10 @@ void ElevationMap::PlotLOSMap(const Site &source, double altitude) {
  * and plots the ITM/ITWOM attenuation on the SPLAT! generated topographic map
  * based on a receiver located at the specified altitude (in feet AGL).  Results
  * are stored in memory, and written out in the form of a topographic map when
- * the WriteImageLR() or WriteImageSS() functions are later invoked.
+ * the WriteCoverageMap() function is later invoked.
  */
 void ElevationMap::PlotLRMap(const Site &source, double altitude,
-                             const string &plo_filename, const PatFile &pat,
+                             const string &plo_filename, const AntennaPattern &pat,
                              const Lrp &lrp) {
     int y, z, count;
     Site edge;
@@ -901,10 +902,10 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude,
 
     count = 0;
 
-    if (sr.olditm)
-        fprintf(stdout, "\nComputing ITWOM ");
-    else
+    if(sr.propagation_model == PROP_ITM)
         fprintf(stdout, "\nComputing ITM ");
+    else
+        fprintf(stdout, "\nComputing ITWOM ");
 
     if (lrp.erp == 0.0)
         fprintf(stdout, "path loss");
@@ -1124,7 +1125,7 @@ void ElevationMap::PlotLRMap(const Site &source, double altitude,
  */
 void ElevationMap::PlotLRPath(const Site &source, const Site &destination,
                               unsigned char mask_value, FILE *fd,
-                              const PatFile &pat, const Lrp &lrp) {
+                              const AntennaPattern &pat, const Lrp &lrp) {
     int x, y, ifs, ofs, errnum;
     char block = 0, strmode[100];
     double loss, azimuth, pattern = 0.0, xmtr_alt, dest_alt, xmtr_alt2,
@@ -1269,7 +1270,7 @@ void ElevationMap::PlotLRPath(const Site &source, const Site &destination,
             elev[1] = (elev_t)(METERS_PER_MILE *
                                (path.distance[y] - path.distance[y - 1]));
 
-            if (!sr.olditm)
+            if (sr.propagation_model == PROP_ITWOM)
                 point_to_point(elev, source.alt * METERS_PER_FOOT,
                                destination.alt * METERS_PER_FOOT,
                                lrp.eps_dielect, lrp.sgm_conductivity,
@@ -1304,8 +1305,7 @@ void ElevationMap::PlotLRPath(const Site &source, const Site &destination,
                                     "%.2f", loss);
             }
 
-            /* Integrate the antenna's radiation
-               pattern into the overall path loss. */
+            /* Substract the antenna's (log) gain from the overall path loss. */
 
             x = (int)rint(10.0 * (10.0 - elevation));
 

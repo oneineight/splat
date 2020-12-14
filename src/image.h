@@ -16,9 +16,17 @@
 #include "site.h"
 #include "region.h"
 #include "imagewriter.h"
+#include "utilities.h"
 
 #include <string>
 #include <vector>
+
+typedef enum MapType {
+    MAPTYPE_DBM,
+    MAPTYPE_DBUVM,
+    MAPTYPE_PATHLOSS,
+    MAPTYPE_LOS
+} MapType;
 
 class Image {
   private:
@@ -26,19 +34,14 @@ class Image {
     const ElevationMap &em;
     std::string &filename;
     const std::vector<Site> &xmtr;
+    const double one_over_gamma = 1.0 / GAMMA;
+    double conversion;
 
   public:
     Image(const SplatRun &sr, std::string &filename,
-          const std::vector<Site> &xmtr, const ElevationMap &em)
-        : sr(sr), em(em), filename(filename), xmtr(xmtr) {}
+          const std::vector<Site> &xmtr, const ElevationMap &em);
 
-    void WriteImage(ImageType imagetype);
-
-    void WriteImageLR(ImageType imagetype, Region &region);
-
-    void WriteImageSS(ImageType imagetype, Region &region);
-
-    void WriteImageDBM(ImageType imagetype, Region &region);
+    void WriteCoverageMap(MapType maptype, ImageType imagetype, Region &region);
 
   private:
     void WriteKmlForImage(const std::string &groundOverlayName,
@@ -50,6 +53,16 @@ class Image {
     static void WriteGeo(const std::string &geofile, const std::string &mapfile,
                          double north, double south, double east, double west,
                          unsigned int width, unsigned int height);
+    Pixel GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, int y0);
+    
+    int GetIndexForLegend(int colorwidth, MapType maptype, Region &region, int x0, int y0);
+    
+    int GetIndexForColorKeyImageFile(MapType maptype, Region &region, int x0, int y0);
+    
+    void WriteColorKeyImageFile(const std::string &ckfile, ImageType imagetype, MapType maptype, Region &region);
+    
+    void WriteLegend(ImageWriter &iw, MapType maptype, Region &region, unsigned int width);
+    
 };
 
 #endif /* image_h */

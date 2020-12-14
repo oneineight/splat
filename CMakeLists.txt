@@ -9,13 +9,18 @@ set(CMAKE_CXX_FLAGS "-O3 -Wall -ffast-math")
 set(CMAKE_C_FLAGS "-O3 -Wall -ffast-math")	# required for optimization of itwom3.c until it is ported to C++
 
 if(WIN32)
+  add_definitions(-DHAVE_LIBPNG)
   set(SHAREDIR ".")
   set(DOCDIR "docs")
 elseif(APPLE)
+  add_definitions(-DHAVE_LIBPNG -DHAVE_LIBJPEG -DHAVE_LIBGDAL)
   set(SHAREDIR "${CMAKE_INSTALL_PREFIX}/share/${PROJECT_NAME}")
   set(DOCDIR "share/docs/${PROJECT_NAME}")
   set(MANDIR "share/man")
+  # See https://stackoverflow.com/questions/36523911/osx-homebrew-cmake-libpng-version-mismatch-issue
+  set(CMAKE_FIND_FRAMEWORK LAST)
 elseif(UNIX) # Linux, BSD etc
+  add_definitions(-DHAVE_LIBPNG -DHAVE_LIBJPEG -DHAVE_LIBGDAL)
   set(SHAREDIR "share/${PROJECT_NAME}")
   set(DOCDIR "share/docs/${PROJECT_NAME}")
   set(MANDIR "share/man")

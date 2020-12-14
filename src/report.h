@@ -15,7 +15,7 @@
 #include "elevation_map.h"
 #include "path.h"
 #include "site.h"
-#include "pat_file.h"
+#include "antenna_pattern.h"
 
 #include <string>
 
@@ -35,7 +35,7 @@ class Report {
 
     void PathReport(const Site &source, const Site &destination,
                     const std::string &name, bool graph_it, elev_t elev[],
-                    const PatFile &pat, const Lrp &lrp);
+                    const AntennaPattern &pat, const Lrp &lrp);
 
     void SiteReport(const Site &xmtr);
 
