@@ -164,6 +164,7 @@ int main(int argc, const char *argv[]) {
                "     -ppm when generating maps, create ppms instead of pngs or "
                "jpgs\n"
 #endif
+               "     -tif create geotiff instead of png or jpeg\n"
                "     -ngs display greyscale topography as white in images\n"
                "     -erp override ERP in .lrp file (Watts)\n"
                "     -ano name of alphanumeric output file\n"
