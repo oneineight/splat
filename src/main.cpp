@@ -175,7 +175,7 @@ int main(int argc, const char *argv[]) {
                "     -dbm plot signal power level contours rather than field "
                "strength\n"
                "     -log copy command line string to this output file\n"
-               "     -json create JSON file containing configuration\n"
+               "     -json create JSON file containing configuration \n"
                "   -gpsav preserve gnuplot temporary working files after "
                "SPLAT! execution\n"
                "   -itwom invoke the ITWOM model instead of using "
@@ -1197,11 +1197,12 @@ int main(int argc, const char *argv[]) {
 		}
 	}
 	// end argv[] reading
-	
-    Json json(*em_p, sr);
-    json.WriteJSON(args, tx_site[0], lrp, mapfile);
-    //=====================
     */
+    if (sr.json) {
+        Json json(*em_p, sr);
+        json.WriteJSON(args, tx_site[0], lrp, mapfile);
+    }
+    //=====================
 
     /* That's all, folks! */
 
