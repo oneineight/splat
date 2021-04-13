@@ -58,9 +58,10 @@ extern "C" {
 #endif
 
 #ifndef _WIN32
-#define GetRValue(RGBColor) (uint8_t)(RGBColor & 0xff)
-#define GetGValue(RGBColor) (uint8_t)((((uint32_t)(RGBColor)) >> 8) & 0xff)
-#define GetBValue(RGBColor) (uint8_t)((((uint32_t)(RGBColor)) >> 16) & 0xff)
+#define GetSValue(RGBColor) (uint8_t)(RGBColor & 0xff)
+#define GetRValue(RGBColor) (uint8_t)((((uint32_t)(RGBColor)) >> 8) & 0xff)
+#define GetGValue(RGBColor) (uint8_t)((((uint32_t)(RGBColor)) >> 16) & 0xff)
+#define GetBValue(RGBColor) (uint8_t)((((uint32_t)(RGBColor)) >> 24) & 0xff)
 #endif
 
 typedef uint32_t Pixel;
@@ -118,6 +119,7 @@ class ImageWriter {
     int m_linenumber = 0;
 
     unsigned char *m_imgline = NULL;
+    unsigned char *m_imgline_signal = NULL;
     unsigned char *m_imgline_red = NULL;
     unsigned char *m_imgline_green = NULL;
     unsigned char *m_imgline_blue = NULL;

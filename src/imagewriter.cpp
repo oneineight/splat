@@ -51,6 +51,7 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
                          int width, int height, double north, double south, double east, double west)
     : m_imagetype(imagetype), m_width(width), m_height(height), m_north(north), m_south(south), m_east(east), m_west(west) {
 
+    m_imgline_signal = new unsigned char[m_width];
     m_imgline_red = new unsigned char[m_width];
     m_imgline_green = new unsigned char[m_width];
     m_imgline_blue = new unsigned char[m_width];
@@ -94,9 +95,10 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
 #ifdef HAVE_LIBGDAL
     case IMAGETYPE_GEOTIFF:
 		GDALAllRegister();
-		poDriver = GetGDALDriverManager()->GetDriverByName("GTiff");
 		papszOptions = CSLSetNameValue(papszOptions, "COMPRESS", "DEFLATE");
-		poDstDS = poDriver->Create(filename.c_str(), m_width, m_height, 4, GDT_Byte, papszOptions);	/* create geotiff file with rgba bands */	
+		papszOptions = CSLSetNameValue(papszOptions, "TILED", "YES");
+		poDriver = GetGDALDriverManager()->GetDriverByName("GTiff");
+		poDstDS = poDriver->Create(filename.c_str(), m_width, m_height, 5, GDT_Byte, papszOptions);	/* create geotiff file with rgba bands */
 		poDstDS->SetGeoTransform(adfGeoTransform);	/* georeferencing of image (see .h file) */
 		oSRS.SetWellKnownGeogCS("EPSG:4326");
 		oSRS.exportToWkt(&pszSRS_WKT);
@@ -112,7 +114,7 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
 		hTransformArg = GDALCreateGenImgProjTransformer( poDstDS, pszSRS_WKT, NULL, pszSRS_WKTproj, FALSE, 0, 1 );
 		GDALSuggestedWarpOutput( poDstDS,GDALGenImgProjTransform, hTransformArg, adfGeoTransform, &nPixels, &nLines );
 		GDALDestroyGenImgProjTransformer( hTransformArg );
-		poDstDSproj = poDriver->Create("test_12345.tif", nPixels, nLines, 4, GDT_Byte, papszOptions);
+		poDstDSproj = poDriver->Create("test_12345.tif", nPixels, nLines, 6, GDT_Byte, papszOptions);
 		poDstDSproj->SetGeoTransform(adfGeoTransform);
 		cout << pszSRS_WKTproj << endl;
 		poDstDSproj->SetProjection(pszSRS_WKTproj);
@@ -187,10 +189,12 @@ void ImageWriter::AppendPixel(Pixel pixel) {
     }
 
 	/* four distinct lines for red, green, blue and alpha (rgba) for geotiff */
-	m_imgline_red[m_xoffset_rgb] = GetRValue(pixel);
+	m_imgline_signal[m_xoffset_rgb] = GetSValue(pixel);
+        m_imgline_red[m_xoffset_rgb] = GetRValue(pixel);
 	m_imgline_green[m_xoffset_rgb] = GetGValue(pixel);
 	m_imgline_blue[m_xoffset_rgb] = GetBValue(pixel);
-	m_imgline_alpha[m_xoffset_rgb] = ((pixel & 0x00FFFFFF) == 0x00FFFFFF) ? 0 : 255;	// Select all white pixels and mask them as transparent
+	m_imgline_alpha[m_xoffset_rgb] = ((pixel & 0xFF00FFFF) == 0xFF00FFFF) ? 0 : 255;	// Select all white pixels and mask them as transparent
+	
 	m_xoffset_rgb++;
 	
 	/* 3-byte array (rgb) for other image types */
@@ -221,6 +225,7 @@ void ImageWriter::EmitLine() {
 		poDstDS->GetRasterBand(2)->RasterIO(GF_Write, 0, m_linenumber, m_width, 1, m_imgline_green, m_width, 1, GDT_Byte, 0, 0);
 		poDstDS->GetRasterBand(3)->RasterIO(GF_Write, 0, m_linenumber, m_width, 1, m_imgline_blue, m_width, 1, GDT_Byte, 0, 0);
 		poDstDS->GetRasterBand(4)->RasterIO(GF_Write, 0, m_linenumber, m_width, 1, m_imgline_alpha, m_width, 1, GDT_Byte, 0, 0);
+		poDstDS->GetRasterBand(5)->RasterIO(GF_Write, 0, m_linenumber, m_width, 1, m_imgline_signal, m_width, 1, GDT_Byte, 0, 0);
         break;
 #endif
 #ifdef HAVE_LIBJPEG

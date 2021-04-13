@@ -30,29 +30,29 @@
 using namespace std;
 
 #ifndef _WIN32
-#define RGB(r, g, b) (((uint32_t)(uint8_t)r) | ((uint32_t)((uint8_t)g) << 8) | ((uint32_t)((uint8_t)b) << 16))
+#define RGB(signal, r, g, b) (((uint32_t)(uint8_t)signal) | ((uint32_t)((uint8_t)r) << 8) | ((uint32_t)((uint8_t)g) << 16) | ((uint32_t)((uint8_t)b) << 24))
 #endif
 
-#define COLOR_RED RGB(255, 0, 0)
-#define COLOR_LIGHTCYAN RGB(128, 128, 255)
-#define COLOR_GREEN RGB(0, 255, 0)
-#define COLOR_DARKGREEN RGB(0, 100, 0)
-#define COLOR_DARKSEAGREEN1 RGB(193, 255, 193)
-#define COLOR_CYAN RGB(0, 255, 255)
-#define COLOR_YELLOW RGB(255, 255, 0)
-#define COLOR_GREENYELLOW RGB(173, 255, 47)
-#define COLOR_MEDIUMSPRINGGREEN RGB(0, 250, 154)
-#define COLOR_MEDIUMVIOLET RGB(147, 112, 219)
-#define COLOR_PINK RGB(255, 192, 203)
-#define COLOR_ORANGE RGB(255, 165, 0)
-#define COLOR_SIENNA RGB(255, 130, 71)
-#define COLOR_BLANCHEDALMOND RGB(255, 235, 205)
-#define COLOR_DARKTURQUOISE RGB(0, 206, 209)
-#define COLOR_TAN RGB(210, 180, 140)
-#define COLOR_GOLD2 RGB(238, 201, 0)
-#define COLOR_MEDIUMBLUE RGB(0, 0, 170)
-#define COLOR_WHITE RGB(255, 255, 255)
-#define COLOR_BLACK RGB(0, 0, 0)
+#define COLOR_RED RGB(0, 255, 0, 0)
+#define COLOR_LIGHTCYAN RGB(0, 128, 128, 255)
+#define COLOR_GREEN RGB(0, 0, 255, 0)
+#define COLOR_DARKGREEN RGB(0, 0, 100, 0)
+#define COLOR_DARKSEAGREEN1 RGB(0, 193, 255, 193)
+#define COLOR_CYAN RGB(0, 0, 255, 255)
+#define COLOR_YELLOW RGB(0, 255, 255, 0)
+#define COLOR_GREENYELLOW RGB(0, 173, 255, 47)
+#define COLOR_MEDIUMSPRINGGREEN RGB(0, 0, 250, 154)
+#define COLOR_MEDIUMVIOLET RGB(0, 147, 112, 219)
+#define COLOR_PINK RGB(0, 255, 192, 203)
+#define COLOR_ORANGE RGB(0, 255, 165, 0)
+#define COLOR_SIENNA RGB(0, 255, 130, 71)
+#define COLOR_BLANCHEDALMOND RGB(0, 255, 235, 205)
+#define COLOR_DARKTURQUOISE RGB(0, 0, 206, 209)
+#define COLOR_TAN RGB(0, 210, 180, 140)
+#define COLOR_GOLD2 RGB(0, 238, 201, 0)
+#define COLOR_MEDIUMBLUE RGB(0, 0, 0, 170)
+#define COLOR_WHITE RGB(0, 255, 255, 255)
+#define COLOR_BLACK RGB(0, 0, 0, 0)
 
 Image::Image(const SplatRun &sr, std::string &filename,
       const std::vector<Site> &xmtr, const ElevationMap &em)
@@ -65,37 +65,41 @@ conversion(255.0 / pow((double)(em.max_elevation - em.min_elevation), one_over_g
 {}
 
 Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, int y0) {
-    
+
     unsigned int red, green, blue, terrain;
-    
+
     if (dem == NULL) {
-        return COLOR_BLACK;
+        return RGB(0,0,0,0);
     }
-    
+
     unsigned char mask = dem->mask[x0 * sr.ippd + y0];
-    
+
     /* Note: The array dem->signal holds a scaled value depending
      * on the type that is unscaled again in the following.
      * See function PlotLRPath() in elevation_map.cpp
      */
+    int pathloss;
     int signal;
+
+    pathloss = (dem->signal[x0 * sr.ippd + y0]);
+
     if(maptype == MAPTYPE_DBM) {
         // signal contains the power level in dBm
-        signal = (dem->signal[x0 * sr.ippd + y0]) - 200;
+        signal = pathloss - 200;
     } else if(maptype == MAPTYPE_DBUVM) {
         // signal contains the power level in dBuV/m
-        signal = (dem->signal[x0 * sr.ippd + y0]) - 100;
+        signal = pathloss - 100;
     } else if(maptype == MAPTYPE_PATHLOSS) {
         // signal contains the path loss in dB
-        signal = (dem->signal[x0 * sr.ippd + y0]);
+        signal = pathloss;
     }
-    
+
     int match = 255;
-    
+
     red = 0;
     green = 0;
     blue = 0;
-    
+
     if(maptype != MAPTYPE_PATHLOSS) {
         // for dBm and dBuV/m output
         if (signal >= region.level[0]) {
@@ -107,7 +111,7 @@ Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, i
                 }
             }
         }
-        
+
         if (match < region.levels) {
             if (sr.smooth_contours && match > 0) {
                 red = (unsigned)Utilities::interpolate(
@@ -128,7 +132,7 @@ Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, i
                 blue = region.color[match][2];
             }
         }
-        
+
     } else {
         // PathLoss is calculated differently from dBm and dBuV/m
         if (signal <= region.level[0]) {
@@ -140,7 +144,7 @@ Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, i
                 }
             }
         }
-        
+
         if (match < region.levels) {
             if (sr.smooth_contours && match > 0) {
                 red = (unsigned)Utilities::interpolate(
@@ -162,20 +166,20 @@ Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, i
             }
         }
     }
-    
+
     Pixel pixel;
-    
+
     if (mask & 2) {
         /* Text Labels: Red or otherwise */
-        
+
         if (red >= 180 && green <= 75 && blue <= 75 && signal != 0) {
-            pixel = RGB(255 ^ red, 255 ^ green, 255 ^ blue);
+            pixel = RGB(pathloss, 255 ^ red, 255 ^ green, 255 ^ blue);
         } else {
-            pixel = COLOR_RED;
+            pixel = RGB(pathloss, 255, 0, 0);
         }
     } else if (mask & 4) {
         /* County Boundaries: Black */
-        pixel = COLOR_BLACK;
+        pixel = RGB(pathloss, 0, 0, 0);
     } else {
         switch (maptype)
         {
@@ -184,27 +188,27 @@ Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, i
                   if (signal == 0 || (sr.contour_threshold != 0 && signal > abs(sr.contour_threshold))) {
                       if (sr.ngs) {
                           /* No terrain */
-                          pixel = COLOR_WHITE;
+                          pixel = RGB(pathloss, 255, 255, 255);
                       } else {
                           /* Display land or sea elevation */
                           if (dem->data[x0 * sr.ippd + y0] == 0) {
-                              pixel = COLOR_MEDIUMBLUE;
+                              pixel = RGB(pathloss, 0, 0, 170);
                           } else {
                               terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-                              pixel = RGB(terrain, terrain, terrain);
+                              pixel = RGB(pathloss, terrain, terrain, terrain);
                           }
                       }
                   } else {
                       /* Plot signal level regions in color */
                       if (red != 0 || green != 0 || blue != 0) {
-                          pixel = RGB(red, green, blue);
+                          pixel = RGB(pathloss, red, green, blue);
                       } else { /* terrain / sea-level */
                           if (dem->data[x0 * sr.ippd + y0] == 0) {
-                              pixel = COLOR_MEDIUMBLUE;
+                              pixel = RGB(pathloss, 0, 0, 170);
                           } else {
                               /* Elevation: Greyscale */
                               terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-                              pixel = RGB(terrain, terrain, terrain);
+                              pixel = RGB(pathloss, terrain, terrain, terrain);
                           }
                       }
                   }
@@ -213,90 +217,90 @@ Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, i
                  switch (mask & 57) {
                      case 1:
                          /* TX1: Green */
-                         pixel = COLOR_GREEN;
+                         pixel = RGB(pathloss, 0, 255, 0);
                          break;
 
                      case 8:
                          /* TX2: Cyan */
-                         pixel = COLOR_CYAN;
+                         pixel = RGB(pathloss, 0, 255, 255);
                          break;
 
                      case 9:
                          /* TX1 + TX2: Yellow */
-                         pixel = COLOR_YELLOW;
+                         pixel = RGB(pathloss, 255, 255, 0);
                          break;
 
                      case 16:
                          /* TX3: Medium Violet */
-                         pixel = COLOR_MEDIUMVIOLET;
+                         pixel = RGB(pathloss, 147, 112, 219);
                          break;
 
                      case 17:
                          /* TX1 + TX3: Pink */
-                         pixel = COLOR_PINK;
+                         pixel = RGB(pathloss, 255, 192, 203);
                          break;
 
                      case 24:
                          /* TX2 + TX3: Orange */
-                         pixel = COLOR_ORANGE;
+                         pixel = RGB(pathloss, 255, 165, 0);
                          break;
 
                      case 25:
                          /* TX1 + TX2 + TX3: Dark Green */
-                         pixel = COLOR_DARKGREEN;
+                         pixel = RGB(pathloss, 0, 100, 0);
                          break;
 
                      case 32:
                          /* TX4: Sienna 1 */
-                         pixel = COLOR_SIENNA;
+                         pixel = RGB(pathloss, 255, 130, 71);
                          break;
 
                      case 33:
                          /* TX1 + TX4: Green Yellow */
-                         pixel = COLOR_GREENYELLOW;
+                         pixel = RGB(pathloss, 173, 255, 47);
                          break;
 
                      case 40:
                          /* TX2 + TX4: Dark Sea Green 1 */
-                         pixel = COLOR_DARKSEAGREEN1;
+                         pixel = RGB(pathloss, 193, 255, 193);
                          break;
 
                      case 41:
                          /* TX1 + TX2 + TX4: Blanched Almond */
-                         pixel = COLOR_BLANCHEDALMOND;
+                         pixel = RGB(pathloss, 255, 235, 205);
                          break;
 
                      case 48:
                          /* TX3 + TX4: Dark Turquoise */
-                         pixel = COLOR_DARKTURQUOISE;
+                         pixel = RGB(pathloss, 0, 206, 209);
                          break;
 
                      case 49:
                          /* TX1 + TX3 + TX4: Medium Spring Green */
-                         pixel = COLOR_MEDIUMSPRINGGREEN;
+                         pixel = RGB(pathloss, 0, 250, 154);
                          break;
 
                      case 56:
                          /* TX2 + TX3 + TX4: Tan */
-                         pixel = COLOR_TAN;
+                         pixel = RGB(pathloss, 210, 180, 140);
                          break;
 
                      case 57:
                          /* TX1 + TX2 + TX3 + TX4: Gold2 */
-                         pixel = COLOR_GOLD2;
+                         pixel = RGB(pathloss, 238, 201, 0);
                          break;
 
                      default:
                          if (sr.ngs) /* No terrain */
-                             pixel = COLOR_MEDIUMBLUE;
+                             pixel = RGB(pathloss, 0, 0, 170);
                          else {
                              /* Sea-level: Medium Blue */
                              if (dem->data[x0 * sr.ippd + y0] == 0)
-                                 pixel = COLOR_MEDIUMBLUE;
+                                 pixel = RGB(pathloss, 0, 0, 170);
                              else {
                                  /* Elevation: Greyscale */
                                  terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-                                 pixel = RGB(terrain, terrain, terrain);
+                                 pixel = RGB(pathloss, terrain, terrain, terrain);
                              }
                          }
                      }
@@ -305,32 +309,32 @@ Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, i
                 if (sr.contour_threshold != 0 && signal < sr.contour_threshold) {
                     if (sr.ngs) {
                         /* No terrain */
-                        pixel = COLOR_WHITE;
+                        pixel = RGB(pathloss, 0, 0, 0);
                     } else {
                         /* Display land or sea elevation */
                         if (dem->data[x0 * sr.ippd + y0] == 0) {
-                            pixel = COLOR_MEDIUMBLUE;
+                            pixel = RGB(pathloss, 0, 0, 170);
                         } else {
                             terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-                            pixel = RGB(terrain, terrain, terrain);
+                            pixel = RGB(pathloss, terrain, terrain, terrain);
                         }
                     }
                 } else {
                     /* Plot signal level regions in color */
                     if (red != 0 || green != 0 || blue != 0) {
-                        pixel = RGB(red, green, blue);
+                        pixel = RGB(pathloss, red, green, blue);
                     }
                     else /* terrain / sea-level */
                     {
                         if (sr.ngs) {
-                            pixel = COLOR_WHITE;
+                            pixel = RGB(pathloss, 0, 0, 0);;
                         } else {
                             if (dem->data[x0 * sr.ippd + y0] == 0) {
-                                pixel = COLOR_MEDIUMBLUE;
+                                pixel =  RGB(pathloss, 0, 0, 170);
                             } else {
                                 /* Elevation: Greyscale */
                                 terrain = (unsigned)(0.5 + pow((double)(dem->data[x0 * sr.ippd + y0] - em.min_elevation), one_over_gamma) * conversion);
-                                pixel = RGB(terrain, terrain, terrain);
+                                pixel = RGB(pathloss, terrain, terrain, terrain);
                             }
                         }
                     }
@@ -339,7 +343,6 @@ Pixel Image::GetPixel(const Dem *dem, MapType maptype, Region &region, int x0, i
                 break;
         }
     }
-
     return pixel;
 }
 
@@ -584,13 +587,13 @@ void Image::WriteColorKeyImageFile(const std::string &ckfile, ImageType imagetyp
 
                 Pixel pixel;
                 if (indx > region.levels) {
-                    pixel = COLOR_BLACK;
+                    pixel = RGB(0, 0, 0, 0);
                 } else {
                     unsigned int red = region.color[indx][0];
                     unsigned int green = region.color[indx][1];
                     unsigned int blue = region.color[indx][2];
 
-                    pixel = RGB(red, green, blue);
+                    pixel = RGB(0, red, green, blue);
                 }
 
                 iw.AppendPixel(pixel);
@@ -837,13 +840,13 @@ void Image::WriteLegend(ImageWriter &iw, MapType maptype, Region &region, unsign
 
             Pixel pixel;
             if (indx > region.levels) {
-                pixel = COLOR_BLACK;
+                pixel = RGB(0, 0, 0, 0);
             } else {
                 unsigned int red = region.color[indx][0];
                 unsigned int green = region.color[indx][1];
                 unsigned int blue = region.color[indx][2];
 
-                pixel = RGB(red, green, blue);
+                pixel = RGB(0, red, green, blue);
             }
 
             iw.AppendPixel(pixel);
