@@ -103,6 +103,11 @@ ImageWriter::ImageWriter(const std::string &filename, ImageType imagetype,
 		oSRS.SetWellKnownGeogCS("EPSG:4326");
 		oSRS.exportToWkt(&pszSRS_WKT);
 		poDstDS->SetProjection(pszSRS_WKT);	/* set projection and spatial reference system*/
+
+		//Add Meta data to the image, see https://gdal.org/drivers/raster/gtiff.html#metadata for the full list.
+		poDstDS->SetMetadataItem( "TIFFTAG_DOCUMENTNAME", "Coverage plot" );
+		poDstDS->SetMetadataItem( "TIFFTAG_SOFTWARE", "Splat!" );
+
 		CPLFree(pszSRS_WKT);
 		
 		/* Reprojection NON-FUNCTIONAL... */
