@@ -31,5 +31,14 @@ add_executable(splat
     utilities.cpp
     workqueue.cpp)
     
-target_link_libraries(splat bz2 ${PNG_LIBRARIES} ${JPEG_LIBRARIES} ${GDAL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(
+  splat
+  PRIVATE nlohmann_json::nlohmann_json
+  bz2
+  ${PNG_LIBRARIES}
+  ${JPEG_LIBRARIES}
+  ${GDAL_LIBRARIES}
+  ${CMAKE_THREAD_LIBS_INIT}
+)
+
 install(TARGETS splat DESTINATION bin)
