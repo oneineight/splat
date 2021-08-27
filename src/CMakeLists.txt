@@ -3,6 +3,10 @@ find_package(JPEG REQUIRED)
 find_package(GDAL REQUIRED)
 find_package(Threads REQUIRED)
 
+find_package( Boost 1.76 COMPONENTS program_options REQUIRED )
+
+include_directories( ${Boost_INCLUDE_DIR} )
+
 include_directories(${PNG_INCLUDE_DIR})
 include_directories(${GDAL_INCLUDE_DIR})
 
@@ -31,8 +35,10 @@ add_executable(splat
     utilities.cpp
     workqueue.cpp)
     
-target_link_libraries(
-  splat
+target_link_libraries( splat
+  LINK_PUBLIC ${Boost_LIBRARIES}
+)
+target_link_libraries( splat
   PRIVATE nlohmann_json::nlohmann_json
   bz2
   ${PNG_LIBRARIES}
