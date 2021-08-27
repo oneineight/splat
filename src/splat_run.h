@@ -71,7 +71,6 @@ class SplatRun {
     int arraysize;
 
     bool kml;
-    bool json;
     bool geo;
     bool gpsav;
     bool ngs;
