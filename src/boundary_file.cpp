@@ -16,7 +16,6 @@
 #include "elevation_map.h"
 #include "path.h"
 #include "site.h"
-#include "splat_run.h"
 
 using namespace std;
 

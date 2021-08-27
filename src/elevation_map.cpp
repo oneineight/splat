@@ -17,7 +17,6 @@
 #include "path.h"
 #include "sdf.h"
 #include "site.h"
-#include "splat_run.h"
 #include "utilities.h"
 #include "workqueue.h"
 #include <bzlib.h>

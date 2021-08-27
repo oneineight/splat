@@ -12,7 +12,6 @@
 #include "elevation_map.h"
 #include "path.h"
 #include "site.h"
-#include "splat_run.h"
 #include "utilities.h"
 
 Kml::Kml(const ElevationMap &em, const SplatRun &sr)

@@ -15,7 +15,6 @@
 #include "path.h"
 #include "sdf.h"
 #include "site.h"
-#include "splat_run.h"
 #include "utilities.h"
 #include <bzlib.h>
 #include <cmath>

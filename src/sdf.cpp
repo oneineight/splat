@@ -16,7 +16,6 @@
 #include "path.h"
 #include "sdf_bz.h"
 #include "site.h"
-#include "splat_run.h"
 #include <cmath>
 #include <cstdlib>
 #include <cstring>

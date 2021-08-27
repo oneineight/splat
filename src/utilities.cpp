@@ -10,7 +10,6 @@
 
 #include "utilities.h"
 #include "site.h"
-#include "splat_run.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>

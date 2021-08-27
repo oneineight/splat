@@ -18,7 +18,6 @@
 #include <unistd.h>
 
 #include "elevation_map.h"
-#include "splat_run.h"
 #include "utilities.h"
 
 using namespace std;

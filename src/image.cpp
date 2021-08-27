@@ -18,7 +18,6 @@
 #include "region.h"
 #include "sdf.h"
 #include "site.h"
-#include "splat_run.h"
 #include "utilities.h"
 #include <cmath>
 #include <cstdio>

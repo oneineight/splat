@@ -12,7 +12,6 @@
 #include "elevation_map.h"
 #include "lrp.h"
 #include "sdf.h"
-#include "splat_run.h"
 #include <cmath>
 #include <cstring>
 #include <string>

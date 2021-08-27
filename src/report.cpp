@@ -24,7 +24,6 @@
 #include "report.h"
 #include "sdf.h"
 #include "site.h"
-#include "splat_run.h"
 #include "utilities.h"
 
 using namespace std;

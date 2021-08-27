@@ -10,7 +10,6 @@
 
 #include "antenna_pattern.h"
 #include "site.h"
-#include "splat_run.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
