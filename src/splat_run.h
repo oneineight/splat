@@ -13,6 +13,7 @@
 
 #include <string>
 #include <iostream>
+#include <boost/optional.hpp>
 
 #include "imagewriter.h"
 #include "site.h"
@@ -62,7 +63,6 @@ class SplatRun {
     double deg_range_lon;
     double er_mult;
 
-    Site rx_site;
 
     int ippd;
     int maxpages;
@@ -102,6 +102,28 @@ class SplatRun {
     std::string sdf_delimiter;
     ImageType imagetype;
     ProjectionType projection;
+
+    std::string mapfile;
+    std::string elevation_file;
+    std::string height_file;
+    std::string longley_file;
+    std::string terrain_file;
+    std::string udt_file;
+    std::string ani_filename;
+    std::string ano_filename;
+    std::string logfile;
+    std::string maxpages_str;
+    //std::string proj;
+    
+    std::vector<std::string> city_file;
+    std::vector<std::string> boundary_file;
+    
+    std::vector<Site> tx_site;
+    Site rx_site;
+
+    SplatRun();
+
+    static boost::optional<SplatRun> parse_cli(int argc, const char *argv[]);
 };
 
 #endif /* splat_run_h */
