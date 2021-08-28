@@ -1,0 +1,20 @@
+Existing code is very brittle and hard to access from other code.
+
+I would like to link it's libraries into python (etc) without having to 
+create lots of configuration files.
+
+Split out code in main.cpp into the different classes for the different
+types of output it generates, Line of sight profiles, coverage areas.
+
+I want the input and output to be (something like) a JSON object instead of
+the various text files and have a JSON object for the output too.
+
+Don't need gnuplots - tables of data can be used to generate interactive
+web graphs. Images can be provided as blocks of memory that can be 
+formatted or served from web server etc.
+
+Elevation Map can be refactored. Keep concept of DEM as blocks of cells with elevation and marker data. Also have simple class for pair of co-ordinates that knows which cell and map it is in. DEM blocks can be abstracted and have different implemenations such as direct mmap of htg files, pull from web (as a service) with caching etc.
+
+Points such as TX and RX sites can come from interactive web interface.
+
+Main data engine can be implemented as a web service with JSON in and out.
